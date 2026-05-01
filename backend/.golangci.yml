@@ -1,0 +1,51 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - bodyclose
+    - errorlint
+    - nilerr
+  settings:
+    staticcheck:
+      checks:
+        - "SA*"
+        - "-SA1019"
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (net.Conn).Close
+        - (*os.File).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        - (*google.golang.org/grpc.ClientConn).Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (net.Conn).SetReadDeadline
+        - (net.Conn).SetWriteDeadline
+        - (*net/http.Response).Body.Close
+        - os.Remove
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - bodyclose
+      - source: "^\\s*defer .*\\.(Close|SetReadDeadline|SetWriteDeadline|SetDeadline)\\("
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

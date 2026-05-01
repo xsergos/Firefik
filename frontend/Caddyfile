@@ -1,0 +1,49 @@
+{
+    auto_https off
+}
+
+:80 {
+    encode zstd gzip
+
+    header {
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "same-origin"
+        Permissions-Policy "interest-cohort=(), camera=(), microphone=(), geolocation=()"
+        Content-Security-Policy "default-src 'self'; img-src 'self' data:; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        -Server
+    }
+
+    handle /api/* {
+        reverse_proxy unix//run/firefik/api.sock {
+            header_up Authorization "Bearer {env.FIREFIK_API_TOKEN}"
+        }
+    }
+
+    handle /health {
+        reverse_proxy unix//run/firefik/api.sock
+    }
+
+    handle /live {
+        reverse_proxy unix//run/firefik/api.sock
+    }
+
+    handle /ready {
+        reverse_proxy unix//run/firefik/api.sock
+    }
+
+    handle /ws/* {
+        reverse_proxy unix//run/firefik/api.sock {
+            transport http {
+                versions 1.1
+            }
+            header_up Authorization "Bearer {env.FIREFIK_API_TOKEN}"
+        }
+    }
+
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+}

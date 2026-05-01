@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package firefik.controlplane.v1;
+
+option go_package = "firefik/internal/controlplane/gen/controlplanev1;controlplanev1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+message AgentIdentity {
+  string instance_id = 1;
+  string hostname    = 2;
+  string version     = 3;
+  string backend     = 4;
+  string chain       = 5;
+  map<string, string> labels = 6;
+}
+
+message RegisterRequest {
+  AgentIdentity identity = 1;
+}
+
+message RegisterAck {
+  google.protobuf.Timestamp server_time = 1;
+  int64 heartbeat_interval_seconds = 2;
+}
+
+message ContainerState {
+  string id               = 1;
+  string name             = 2;
+  string status           = 3;
+  string firewall_status  = 4;
+  string default_policy   = 5;
+  map<string, string> labels = 6;
+  int32  rule_set_count   = 7;
+}
+
+message AgentSnapshot {
+  AgentIdentity          agent       = 1;
+  repeated ContainerState containers = 2;
+  google.protobuf.Timestamp at       = 3;
+}
+
+message Heartbeat {
+  AgentIdentity agent = 1;
+  google.protobuf.Timestamp at = 2;
+}
+
+message AuditEvent {
+  AgentIdentity agent   = 1;
+  google.protobuf.Struct event = 2;
+}
+
+message AgentEvent {
+  oneof kind {
+    AgentSnapshot snapshot = 1;
+    AuditEvent    audit    = 2;
+    Heartbeat     heartbeat = 3;
+  }
+}
+
+enum CommandKind {
+  COMMAND_KIND_UNSPECIFIED  = 0;
+  COMMAND_KIND_APPLY        = 1;
+  COMMAND_KIND_DISABLE      = 2;
+  COMMAND_KIND_RECONCILE    = 3;
+  COMMAND_KIND_TOKEN_ROTATE = 4;
+}
+
+message ServerCommand {
+  string                     id           = 1;
+  CommandKind                kind         = 2;
+  string                     container_id = 3;
+  google.protobuf.Struct     payload      = 4;
+  google.protobuf.Timestamp  issued_at    = 5;
+}
+
+message CommandAck {
+  string                     id           = 1;
+  string                     agent_id     = 2;
+  bool                       success      = 3;
+  string                     error        = 4;
+  google.protobuf.Timestamp  completed_at = 5;
+}
+
+message AckReply {}
+
+message PolicyTemplate {
+  string                    name        = 1;
+  int64                     version     = 2;
+  string                    body        = 3;
+  map<string, string>       labels      = 4;
+  google.protobuf.Timestamp created_at  = 5;
+  google.protobuf.Timestamp updated_at  = 6;
+  string                    publisher   = 7;
+}
+
+message ListTemplatesRequest {}
+
+message ListTemplatesResponse {
+  repeated PolicyTemplate templates = 1;
+}
+
+message GetTemplateRequest {
+  string name = 1;
+}
+
+message PublishTemplateRequest {
+  PolicyTemplate template = 1;
+}
+
+message PublishTemplateResponse {
+  PolicyTemplate template = 1;
+}
+
+service ControlPlane {
+  rpc Register(RegisterRequest) returns (RegisterAck);
+  rpc Stream(stream AgentEvent) returns (stream ServerCommand);
+  rpc Ack(CommandAck) returns (AckReply);
+
+  rpc ListTemplates(ListTemplatesRequest) returns (ListTemplatesResponse);
+  rpc GetTemplate(GetTemplateRequest) returns (PolicyTemplate);
+  rpc PublishTemplate(PublishTemplateRequest) returns (PublishTemplateResponse);
+}
