@@ -67,7 +67,7 @@ jobs:
 
       - name: Upload corpus on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-corpus-${{ matrix.target.name }}
           path: backend/**/testdata/fuzz/
@@ -76,7 +76,7 @@ jobs:
 
       - name: Upload fuzz log on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-log-${{ matrix.target.name }}
           path: backend/fuzz.log
