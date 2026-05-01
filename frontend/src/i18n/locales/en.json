@@ -1,0 +1,35 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "containers": "Containers",
+    "rules": "Rules",
+    "policies": "Policies",
+    "proposals": "Proposals",
+    "logs": "Logs",
+    "history": "History"
+  },
+  "theme": {
+    "lightMode": "Light mode",
+    "darkMode": "Dark mode",
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode"
+  },
+  "containers": {
+    "title": "Containers",
+    "filterPlaceholder": "Filter… (/ focus, a apply, d deactivate)",
+    "clearFilter": "clear",
+    "emptyAll": "No containers yet.",
+    "emptyFiltered": "No containers match \"{{filter}}\".",
+    "selectedCount": "{{count}} selected",
+    "applySelected": "Apply selected",
+    "disableSelected": "Disable selected",
+    "clearSelection": "Clear",
+    "reapply": "Re-apply",
+    "deactivate": "Deactivate",
+    "selectAllAria": "Select all visible",
+    "deselectAllAria": "Deselect all",
+    "bulkDisableTitle": "Disable {{count}} container(s)?",
+    "bulkDisableBody": "All Firefik rules will be removed immediately for the selected containers. To restore, press «Apply selected» or re-apply per row.",
+    "cancel": "Cancel"
+  }
+}

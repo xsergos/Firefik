@@ -1,0 +1,156 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to (re)release"
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  images:
+    name: Build & publish images
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - { name: backend,  context: backend  }
+          - { name: frontend, context: frontend }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push ${{ matrix.component.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.component.context }}
+          push: true
+          platforms: linux/amd64,linux/arm64
+          provenance: true
+          sbom: false
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/firefik-${{ matrix.component.name }}:${{ steps.tag.outputs.value }}
+            ghcr.io/${{ github.repository_owner }}/firefik-${{ matrix.component.name }}:latest
+          build-args: |
+            VERSION=${{ steps.tag.outputs.value }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy scan ${{ matrix.component.name }} (amd64)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/firefik-${{ matrix.component.name }}:${{ steps.tag.outputs.value }}
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: 1
+
+      - name: Smoke test arm64 image
+        if: matrix.component.name == 'backend'
+        run: |
+          docker pull --platform linux/arm64 ghcr.io/${{ github.repository_owner }}/firefik-${{ matrix.component.name }}:${{ steps.tag.outputs.value }}
+          docker run --rm --platform linux/arm64 \
+            --entrypoint firefik-admin \
+            ghcr.io/${{ github.repository_owner }}/firefik-${{ matrix.component.name }}:${{ steps.tag.outputs.value }} \
+            help
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ghcr.io/${{ github.repository_owner }}/firefik-${{ matrix.component.name }}:${{ steps.tag.outputs.value }}
+          format: cyclonedx-json
+          output-file: ${{ matrix.component.name }}-sbom.json
+          upload-artifact: true
+          artifact-name: ${{ matrix.component.name }}-sbom
+
+  release-notes:
+    name: GitHub Release
+    runs-on: ubuntu-24.04
+    needs: images
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute previous tag
+        id: prev
+        run: |
+          prev=$(git describe --tags --abbrev=0 "${{ steps.tag.outputs.value }}^" 2>/dev/null || echo "")
+          echo "value=$prev" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          {
+            echo "body<<EOF"
+            if [ -n "${{ steps.prev.outputs.value }}" ]; then
+              echo "## Changes since ${{ steps.prev.outputs.value }}"
+              echo
+              git log --pretty=format:'- %s (%h)' "${{ steps.prev.outputs.value }}..${{ steps.tag.outputs.value }}"
+            else
+              echo "## Initial release ${{ steps.tag.outputs.value }}"
+              echo
+              git log --pretty=format:'- %s (%h)' -n 50 "${{ steps.tag.outputs.value }}"
+            fi
+            echo
+            echo
+            echo "## Images"
+            echo
+            echo '- `ghcr.io/${{ github.repository_owner }}/firefik-backend:${{ steps.tag.outputs.value }}`'
+            echo '- `ghcr.io/${{ github.repository_owner }}/firefik-frontend:${{ steps.tag.outputs.value }}`'
+            echo
+            echo "## Spec"
+            echo
+            echo '- OpenAPI: [backend/internal/api/openapi/swagger.yaml](../blob/${{ steps.tag.outputs.value }}/backend/internal/api/openapi/swagger.yaml)'
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.value }}
+          name: ${{ steps.tag.outputs.value }}
+          body: ${{ steps.notes.outputs.body }}
+          files: |
+            backend/internal/api/openapi/swagger.yaml
+            backend/internal/api/openapi/swagger.json

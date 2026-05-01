@@ -1,0 +1,46 @@
+# build artifacts
+backend/firefik
+backend/firefik-admin
+backend/firefik-server
+backend/cmd/firefik/firefik
+backend/cmd/firefik-admin/firefik-admin
+backend/cmd/firefik-server/firefik-server
+backend/cmd/firefik/a
+*.exe
+bin/
+frontend/dist
+frontend/node_modules
+frontend/coverage
+frontend/playwright-report
+frontend/test-results
+
+# go tooling
+*.test
+*.out
+coverage.txt
+backend/.coverage/
+backend/.coverage*/
+backend/cover-merged.out
+
+# environment / secrets
+.env
+.env.*
+!.env.example
+
+# editor / IDE
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+
+# logs
+*.log
+
+# OS droppings
+.DS_Store
+Thumbs.db
+
+# maintainer-only docs (roadmap, release checklist, design notes, changelog)
+dev-docs/
+CHANGELOG.md

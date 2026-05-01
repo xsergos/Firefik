@@ -1,0 +1,301 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: backend/go.sum
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62
+          working-directory: backend
+          args: --timeout=5m
+
+      - name: openapi drift check
+        run: |
+          go install github.com/swaggo/swag/cmd/swag@v1.16.3
+          make openapi-check
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: gosec
+        uses: securego/gosec@master
+        with:
+          args: -quiet -exclude-dir=cmd/firefik/testdata ./backend/...
+
+      - name: go test + cover-gate
+        env:
+          COVER_THRESHOLD: "76.0"
+        run: make cover-gate
+
+  integration:
+    name: Integration (real kernel)
+    runs-on: ubuntu-24.04
+    needs: backend
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: backend/go.sum
+
+      - name: Install iptables-nft and nftables
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iptables nftables
+
+      - name: Kernel modules sanity
+        run: |
+          sudo iptables -L FORWARD -n
+          sudo nft list ruleset
+
+      - name: go test (integration)
+        run: sudo -E env "PATH=$PATH" go test -tags=integration -timeout=5m -count=1 ./tests/integration/...
+
+  frontend:
+    name: Frontend (React + TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      - name: type-check
+        run: npm run type-check
+
+      - name: lint
+        run: npm run lint
+
+      - name: test (with coverage thresholds)
+        run: npm run test:coverage
+
+      - name: build
+        run: npm run build
+
+  docker-images:
+    name: Docker images
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: false
+          load: true
+          tags: firefik-back:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: false
+          load: true
+          tags: firefik-front:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy scan (backend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: firefik-back:ci
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: 0
+
+      - name: Trivy scan (frontend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: firefik-front:ci
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: 0
+
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: firefik-back:ci
+          format: cyclonedx-json
+          output-file: backend-sbom.json
+          upload-artifact: true
+          artifact-name: backend-sbom
+
+  e2e:
+    name: E2E (Playwright + docker compose)
+    runs-on: ubuntu-24.04
+    needs: [backend, frontend]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Boot compose stack with E2E overrides
+        env:
+          FIREFIK_API_TOKEN: e2e-test-token
+          FIREFIK_HTTP_PORT: "8080"
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --wait \
+            || (docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --no-color; exit 1)
+
+      - name: Wait for frontend readiness
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "frontend never became ready"
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --no-color
+          exit 1
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:8080
+          CI: "true"
+        run: npx playwright test
+
+      - name: Collect compose logs
+        if: always()
+        run: |
+          mkdir -p e2e-artifacts
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --no-color > e2e-artifacts/compose.log || true
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml ps > e2e-artifacts/ps.txt || true
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload compose logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-compose-logs
+          path: e2e-artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml down -v || true
+
+  podman:
+    name: Podman smoke (rootful)
+    runs-on: ubuntu-24.04
+    needs: backend
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install podman + podman-compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman podman-compose
+
+      - name: Enable rootful podman socket
+        run: |
+          sudo systemctl enable --now podman.socket
+          sudo ls -l /run/podman/podman.sock
+
+      - name: Build images with podman
+        run: |
+          sudo podman build -t firefik-back:ci backend
+          sudo podman build -t firefik-front:ci frontend
+
+      - name: Smoke run (list containers via firefik API)
+        env:
+          FIREFIK_API_TOKEN: podman-smoke-token
+        run: |
+          sudo podman network create firefik-smoke || true
+          sudo podman run -d --rm --name firefik-back \
+            --network firefik-smoke \
+            -v /run/podman/podman.sock:/var/run/docker.sock \
+            -e FIREFIK_API_TOKEN="$FIREFIK_API_TOKEN" \
+            -e FIREFIK_LISTEN_ADDR=":8081" \
+            -e FIREFIK_BACKEND=iptables \
+            --cap-add NET_ADMIN --cap-add NET_RAW \
+            --privileged \
+            -p 8081:8081 \
+            firefik-back:ci
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:8081/health >/dev/null; then
+              echo "firefik-back via podman: ok"
+              break
+            fi
+            sleep 2
+          done
+          curl -sfH "Authorization: Bearer $FIREFIK_API_TOKEN" \
+            http://localhost:8081/api/containers >/dev/null
+          sudo podman logs firefik-back | tail -50
+          sudo podman stop firefik-back || true
+          sudo podman network rm firefik-smoke || true

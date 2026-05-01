@@ -1,0 +1,1106 @@
+basePath: /
+definitions:
+  internal_api.APIError:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      message:
+        type: string
+    type: object
+  internal_api.BulkAction:
+    properties:
+      action:
+        enum:
+        - apply
+        - disable
+        type: string
+      id:
+        type: string
+    required:
+    - action
+    - id
+    type: object
+  internal_api.BulkRequest:
+    properties:
+      actions:
+        items:
+          $ref: '#/definitions/internal_api.BulkAction'
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - actions
+    type: object
+  internal_api.BulkResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/internal_api.BulkResultItem'
+        type: array
+      summary:
+        $ref: '#/definitions/internal_api.BulkSummary'
+    type: object
+  internal_api.BulkResultItem:
+    properties:
+      action:
+        type: string
+      error:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+    type: object
+  internal_api.BulkSummary:
+    properties:
+      applied:
+        type: integer
+      disabled:
+        type: integer
+      failed:
+        type: integer
+      total:
+        type: integer
+    type: object
+  internal_api.ContainerCounts:
+    properties:
+      enabled:
+        type: integer
+      running:
+        type: integer
+      total:
+        type: integer
+    type: object
+  internal_api.ContainerDTO:
+    properties:
+      defaultPolicy:
+        type: string
+      enabled:
+        type: boolean
+      firewallStatus:
+        type: string
+      id:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+      ruleSets:
+        items:
+          $ref: '#/definitions/internal_api.FirewallRuleSetDTO'
+        type: array
+      status:
+        type: string
+    type: object
+  internal_api.FirewallRuleSetDTO:
+    properties:
+      allowlist:
+        items:
+          type: string
+        type: array
+      blocklist:
+        items:
+          type: string
+        type: array
+      geoAllow:
+        items:
+          type: string
+        type: array
+      geoBlock:
+        items:
+          type: string
+        type: array
+      log:
+        type: boolean
+      logPrefix:
+        type: string
+      name:
+        type: string
+      ports:
+        items:
+          type: integer
+        type: array
+      profile:
+        type: string
+      protocol:
+        type: string
+      rateLimit:
+        $ref: '#/definitions/internal_api.RateLimitDTO'
+    type: object
+  internal_api.PolicyDetail:
+    properties:
+      dsl:
+        type: string
+      name:
+        type: string
+      ruleSets:
+        items:
+          $ref: '#/definitions/internal_api.FirewallRuleSetDTO'
+        type: array
+      source:
+        type: string
+      version:
+        type: string
+    type: object
+  internal_api.PolicySimulateResponse:
+    properties:
+      container:
+        type: string
+      defaultPolicy:
+        type: string
+      errors:
+        items:
+          type: string
+        type: array
+      labelsSeen:
+        additionalProperties:
+          type: string
+        type: object
+      policy:
+        type: string
+      ruleSets:
+        items:
+          $ref: '#/definitions/internal_api.FirewallRuleSetDTO'
+        type: array
+      warnings:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_api.PolicySummary:
+    properties:
+      name:
+        type: string
+      rules:
+        type: integer
+      source:
+        type: string
+      version:
+        type: string
+    type: object
+  internal_api.ProfileEntry:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  internal_api.RateLimitDTO:
+    properties:
+      burst:
+        type: integer
+      rate:
+        type: integer
+    type: object
+  internal_api.RuleEntry:
+    properties:
+      containerID:
+        type: string
+      containerName:
+        type: string
+      defaultPolicy:
+        type: string
+      ruleSets:
+        items:
+          $ref: '#/definitions/internal_api.FirewallRuleSetDTO'
+        type: array
+      status:
+        type: string
+    type: object
+  internal_api.StatsResponse:
+    properties:
+      containers:
+        $ref: '#/definitions/internal_api.ContainerCounts'
+      traffic:
+        items:
+          $ref: '#/definitions/internal_api.TrafficBucket'
+        type: array
+    type: object
+  internal_api.StatusResponse:
+    properties:
+      error:
+        type: string
+      status:
+        type: string
+      version:
+        type: string
+    type: object
+  internal_api.TrafficBucket:
+    properties:
+      accepted:
+        type: integer
+      dropped:
+        type: integer
+      ts:
+        type: string
+    type: object
+  internal_api.approveRequest:
+    properties:
+      mode:
+        type: string
+    type: object
+  internal_api.approveResponse:
+    properties:
+      container_id:
+        type: string
+      mode:
+        type: string
+      peers:
+        items:
+          type: string
+        type: array
+      ports:
+        items:
+          type: integer
+        type: array
+      snippet:
+        type: string
+    type: object
+  internal_api.policySimulateRequest:
+    properties:
+      containerID:
+        type: string
+      dsl:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  internal_api.policyValidateRequest:
+    properties:
+      dsl:
+        type: string
+    required:
+    - dsl
+    type: object
+  internal_api.policyValidateResponse:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      ok:
+        type: boolean
+      warnings:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_api.policyWriteRequest:
+    properties:
+      comment:
+        type: string
+      dsl:
+        type: string
+    required:
+    - dsl
+    type: object
+  internal_api.rejectRequest:
+    properties:
+      reason:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Container-scoped firewall control plane. Authentication is bearer-token
+    on TCP listeners and peer-credentials on unix sockets.
+  license:
+    name: Apache-2.0
+  title: Firefik API
+  version: "0.3"
+paths:
+  /api/approvals:
+    get:
+      description: Proxies GET /v1/approvals on the configured control-plane.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: object
+            type: array
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: List approvals
+      tags:
+      - approvals
+    post:
+      consumes:
+      - application/json
+      description: Proxies POST /v1/approvals on the configured control-plane.
+      parameters:
+      - description: approval payload
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Create an approval request
+      tags:
+      - approvals
+  /api/approvals/{id}:
+    get:
+      description: Proxies GET /v1/approvals/{id} on the configured control-plane.
+      parameters:
+      - description: approval ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Get an approval
+      tags:
+      - approvals
+  /api/approvals/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Proxies POST /v1/approvals/{id}/approve on the configured control-plane.
+      parameters:
+      - description: approval ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: approval decision payload
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Approve an approval request
+      tags:
+      - approvals
+  /api/approvals/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Proxies POST /v1/approvals/{id}/reject on the configured control-plane.
+      parameters:
+      - description: approval ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: rejection payload
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Reject an approval request
+      tags:
+      - approvals
+  /api/audit/history:
+    get:
+      description: Returns the most recent audit events kept in the in-memory ring
+        buffer. Populated only when `history` is included in `FIREFIK_AUDIT_SINK`.
+        Supports `?limit=<n>` and `?since=<RFC3339>`.
+      parameters:
+      - description: maximum events to return (0 = all)
+        in: query
+        name: limit
+        type: integer
+      - description: RFC3339 timestamp; only events strictly after this are returned
+        in: query
+        name: since
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: object
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Audit history snapshot
+      tags:
+      - logs
+  /api/autogen/proposals:
+    get:
+      description: Returns observe-mode proposals per container. Populated only when
+        `FIREFIK_AUTOGEN_MODE=observe`.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: object
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Auto-generated rule proposals
+      tags:
+      - autogen
+  /api/autogen/proposals/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Materialises a pending observe-mode proposal as labels or a policy
+        snippet and records the approval.
+      parameters:
+      - description: container ID or unambiguous prefix
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: approval mode (`labels` or `policy`)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_api.approveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.approveResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Approve an autogen proposal
+      tags:
+      - autogen
+  /api/autogen/proposals/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Marks an observe-mode proposal as rejected with an optional reason.
+      parameters:
+      - description: container ID or unambiguous prefix
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: rejection reason
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_api.rejectRequest'
+      responses:
+        "204":
+          description: no content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Reject an autogen proposal
+      tags:
+      - autogen
+  /api/containers:
+    get:
+      description: Returns every container visible to the Docker daemon with its parsed
+        firewall configuration and live apply status.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_api.ContainerDTO'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: List containers
+      tags:
+      - containers
+  /api/containers/{id}:
+    get:
+      description: Resolves by full container ID or unambiguous prefix. Returns the
+        parsed label-based config merged with the file-rules overlay.
+      parameters:
+      - description: container ID or unambiguous prefix (12-64 hex chars)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.ContainerDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+        "409":
+          description: ambiguous prefix
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Get a container
+      tags:
+      - containers
+  /api/containers/{id}/apply:
+    post:
+      description: Re-reads labels + file-rules and installs the merged rule-sets.
+        Audit source = `api`.
+      parameters:
+      - description: container ID or unambiguous prefix
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.StatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Apply firewall rules to a container
+      tags:
+      - containers
+  /api/containers/{id}/disable:
+    post:
+      description: Removes kernel chains + any associated audit entries for the container.
+        Audit source = `api`.
+      parameters:
+      - description: container ID (12-64 hex chars)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.StatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Disable firewall rules for a container
+      tags:
+      - containers
+  /api/containers/bulk:
+    post:
+      consumes:
+      - application/json
+      description: 'Accepts up to 100 `{id, action}` entries and runs them against
+        the engine. The endpoint is idempotent per-entry: a successful apply/disable
+        repeated is a no-op. Failures are isolated per-entry.'
+      parameters:
+      - description: actions to perform
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api.BulkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.BulkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Bulk apply/disable containers
+      tags:
+      - containers
+  /api/policies:
+    get:
+      description: Returns the set of compiled policies keyed by name.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_api.PolicySummary'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List policies
+      tags:
+      - policies
+  /api/policies/{name}:
+    get:
+      description: Returns the compiled rule-sets and original DSL source for a single
+        policy.
+      parameters:
+      - description: policy name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.PolicyDetail'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Get a policy
+      tags:
+      - policies
+    put:
+      consumes:
+      - application/json
+      description: Upserts a single policy by name. Fails when `FIREFIK_POLICIES_READONLY=true`.
+      parameters:
+      - description: policy name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: policy DSL + optional comment
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api.policyWriteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.PolicySummary'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Write a policy
+      tags:
+      - policies
+  /api/policies/{name}/simulate:
+    post:
+      consumes:
+      - application/json
+      description: Compiles a policy (existing or supplied via `dsl`) and previews
+        the resulting rule-sets, optionally against a container's labels.
+      parameters:
+      - description: policy name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: simulation request
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_api.policySimulateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.PolicySimulateResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Simulate a policy
+      tags:
+      - policies
+  /api/policies/validate:
+    post:
+      consumes:
+      - application/json
+      description: Parses + compiles `dsl` in the request body and returns `{ok, errors,
+        warnings}` without touching state.
+      parameters:
+      - description: DSL source
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api.policyValidateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.policyValidateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Validate a policy snippet
+      tags:
+      - policies
+  /api/rules:
+    get:
+      description: Snapshot of what firefik currently has applied in the kernel, keyed
+        by container. Each entry includes container name, status, default policy,
+        and per-rule-set details.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_api.RuleEntry'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: List applied rule-sets
+      tags:
+      - rules
+  /api/rules/profiles:
+    get:
+      description: Returns the set of built-in rule-set profiles that labels can reference
+        (`firefik.rules.<name>.profile=<profile>`).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_api.ProfileEntry'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List rule profiles
+      tags:
+      - rules
+  /api/rules/templates:
+    get:
+      description: Returns rule templates loaded from `FIREFIK_TEMPLATES_FILE`. Each
+        template has a deterministic 16-hex version derived from its canonical content.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: object
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List rule templates
+      tags:
+      - rules
+  /api/stats:
+    get:
+      description: Container counts (total/running/enabled) and 60 one-minute traffic
+        buckets (`accepted`/`dropped`).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.StatsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Runtime statistics
+      tags:
+      - stats
+  /api/templates:
+    get:
+      description: Proxies GET /v1/templates on the configured control-plane.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: object
+            type: array
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: List control-plane templates
+      tags:
+      - templates
+    post:
+      consumes:
+      - application/json
+      description: Proxies POST /v1/templates on the configured control-plane.
+      parameters:
+      - description: template payload
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Publish a control-plane template
+      tags:
+      - templates
+  /api/templates/{name}:
+    get:
+      description: Proxies GET /v1/templates/{name} on the configured control-plane.
+      parameters:
+      - description: template name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/internal_api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Get a control-plane template
+      tags:
+      - templates
+  /api/v1/openapi.json:
+    get:
+      description: Returns the embedded `swagger.json` generated by swaggo. Unauthenticated.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: swagger 2.0 JSON document
+          schema:
+            type: string
+      summary: OpenAPI specification (JSON)
+      tags:
+      - meta
+  /api/v1/openapi.yaml:
+    get:
+      description: Returns the embedded `swagger.yaml` generated by swaggo. Unauthenticated.
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: swagger 2.0 YAML document
+          schema:
+            type: string
+      summary: OpenAPI specification (YAML)
+      tags:
+      - meta
+  /health:
+    get:
+      description: Always returns 200 while firefik is serving. Reports the build
+        version.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.StatusResponse'
+      summary: Liveness / health probe
+      tags:
+      - health
+  /ready:
+    get:
+      description: Returns 200 when firefik can talk to Docker, 503 otherwise.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.StatusResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal_api.StatusResponse'
+      summary: Readiness probe
+      tags:
+      - health
+  /ws/logs:
+    get:
+      description: WebSocket endpoint. Frames are JSON `{event,…}` objects (see backend/internal/logstream)
+        and periodic `{event:"dropped",count:N}` control messages when a slow consumer
+        lags the hub.
+      parameters:
+      - description: substring filter applied to each frame before send
+        in: query
+        name: filter
+        type: string
+      responses:
+        "101":
+          description: switching protocols
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Subscribe to the live event stream
+      tags:
+      - logs
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

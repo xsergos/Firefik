@@ -1,0 +1,24 @@
+services:
+  backend:
+    environment:
+      FIREFIK_LOG_LEVEL: debug
+      FIREFIK_USE_GEOIP_DB: "false"
+      FIREFIK_GEOIP_DB_AUTOUPDATE: "false"
+      FIREFIK_AUDIT_SINK_MAX_SIZE_MB: "0"
+
+  mock-target:
+    image: nginx:1.27-alpine
+    container_name: ${STACK_PREFIX:-firefik}-e2e-target
+    restart: "no"
+    labels:
+      firefik.enable: "true"
+      firefik.defaultpolicy: "DROP"
+      firefik.firewall.web.ports: "80"
+      firefik.firewall.web.protocol: "tcp"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 50
+    mem_limit: 32m
+    cpus: "0.25"

@@ -1,0 +1,1710 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Container-scoped firewall control plane. Authentication is bearer-token on TCP listeners and peer-credentials on unix sockets.",
+        "title": "Firefik API",
+        "contact": {},
+        "license": {
+            "name": "Apache-2.0"
+        },
+        "version": "0.3"
+    },
+    "basePath": "/",
+    "paths": {
+        "/api/approvals": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Proxies GET /v1/approvals on the configured control-plane.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "List approvals",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Proxies POST /v1/approvals on the configured control-plane.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "Create an approval request",
+                "parameters": [
+                    {
+                        "description": "approval payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/approvals/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Proxies GET /v1/approvals/{id} on the configured control-plane.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "Get an approval",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "approval ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/approvals/{id}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Proxies POST /v1/approvals/{id}/approve on the configured control-plane.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "Approve an approval request",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "approval ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "approval decision payload",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/approvals/{id}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Proxies POST /v1/approvals/{id}/reject on the configured control-plane.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "approvals"
+                ],
+                "summary": "Reject an approval request",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "approval ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "rejection payload",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/audit/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the most recent audit events kept in the in-memory ring buffer. Populated only when `history` is included in `FIREFIK_AUDIT_SINK`. Supports `?limit=\u003cn\u003e` and `?since=\u003cRFC3339\u003e`.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "logs"
+                ],
+                "summary": "Audit history snapshot",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "maximum events to return (0 = all)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC3339 timestamp; only events strictly after this are returned",
+                        "name": "since",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/autogen/proposals": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns observe-mode proposals per container. Populated only when `FIREFIK_AUTOGEN_MODE=observe`.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "autogen"
+                ],
+                "summary": "Auto-generated rule proposals",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/autogen/proposals/{id}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Materialises a pending observe-mode proposal as labels or a policy snippet and records the approval.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "autogen"
+                ],
+                "summary": "Approve an autogen proposal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "container ID or unambiguous prefix",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "approval mode (`labels` or `policy`)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.approveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.approveResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/autogen/proposals/{id}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Marks an observe-mode proposal as rejected with an optional reason.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "autogen"
+                ],
+                "summary": "Reject an autogen proposal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "container ID or unambiguous prefix",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "rejection reason",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.rejectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "no content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/containers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns every container visible to the Docker daemon with its parsed firewall configuration and live apply status.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "containers"
+                ],
+                "summary": "List containers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_api.ContainerDTO"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/containers/bulk": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Accepts up to 100 `{id, action}` entries and runs them against the engine. The endpoint is idempotent per-entry: a successful apply/disable repeated is a no-op. Failures are isolated per-entry.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "containers"
+                ],
+                "summary": "Bulk apply/disable containers",
+                "parameters": [
+                    {
+                        "description": "actions to perform",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.BulkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.BulkResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/containers/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Resolves by full container ID or unambiguous prefix. Returns the parsed label-based config merged with the file-rules overlay.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "containers"
+                ],
+                "summary": "Get a container",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "container ID or unambiguous prefix (12-64 hex chars)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ContainerDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    },
+                    "409": {
+                        "description": "ambiguous prefix",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/containers/{id}/apply": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Re-reads labels + file-rules and installs the merged rule-sets. Audit source = `api`.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "containers"
+                ],
+                "summary": "Apply firewall rules to a container",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "container ID or unambiguous prefix",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.StatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/containers/{id}/disable": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Removes kernel chains + any associated audit entries for the container. Audit source = `api`.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "containers"
+                ],
+                "summary": "Disable firewall rules for a container",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "container ID (12-64 hex chars)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.StatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/policies": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the set of compiled policies keyed by name.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "policies"
+                ],
+                "summary": "List policies",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_api.PolicySummary"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/policies/validate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Parses + compiles `dsl` in the request body and returns `{ok, errors, warnings}` without touching state.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Validate a policy snippet",
+                "parameters": [
+                    {
+                        "description": "DSL source",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.policyValidateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.policyValidateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/policies/{name}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the compiled rule-sets and original DSL source for a single policy.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Get a policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policy name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.PolicyDetail"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upserts a single policy by name. Fails when `FIREFIK_POLICIES_READONLY=true`.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Write a policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policy name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "policy DSL + optional comment",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.policyWriteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.PolicySummary"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/policies/{name}/simulate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Compiles a policy (existing or supplied via `dsl`) and previews the resulting rule-sets, optionally against a container's labels.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "policies"
+                ],
+                "summary": "Simulate a policy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "policy name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "simulation request",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.policySimulateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.PolicySimulateResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rules": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Snapshot of what firefik currently has applied in the kernel, keyed by container. Each entry includes container name, status, default policy, and per-rule-set details.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "List applied rule-sets",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_api.RuleEntry"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rules/profiles": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the set of built-in rule-set profiles that labels can reference (`firefik.rules.\u003cname\u003e.profile=\u003cprofile\u003e`).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "List rule profiles",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_api.ProfileEntry"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rules/templates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns rule templates loaded from `FIREFIK_TEMPLATES_FILE`. Each template has a deterministic 16-hex version derived from its canonical content.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "List rule templates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Container counts (total/running/enabled) and 60 one-minute traffic buckets (`accepted`/`dropped`).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stats"
+                ],
+                "summary": "Runtime statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.StatsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/templates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Proxies GET /v1/templates on the configured control-plane.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "List control-plane templates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Proxies POST /v1/templates on the configured control-plane.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "Publish a control-plane template",
+                "parameters": [
+                    {
+                        "description": "template payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/templates/{name}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Proxies GET /v1/templates/{name} on the configured control-plane.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "Get a control-plane template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "template name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/openapi.json": {
+            "get": {
+                "description": "Returns the embedded `swagger.json` generated by swaggo. Unauthenticated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "meta"
+                ],
+                "summary": "OpenAPI specification (JSON)",
+                "responses": {
+                    "200": {
+                        "description": "swagger 2.0 JSON document",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/openapi.yaml": {
+            "get": {
+                "description": "Returns the embedded `swagger.yaml` generated by swaggo. Unauthenticated.",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "meta"
+                ],
+                "summary": "OpenAPI specification (YAML)",
+                "responses": {
+                    "200": {
+                        "description": "swagger 2.0 YAML document",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "description": "Always returns 200 while firefik is serving. Reports the build version.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Liveness / health probe",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.StatusResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ready": {
+            "get": {
+                "description": "Returns 200 when firefik can talk to Docker, 503 otherwise.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Readiness probe",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.StatusResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.StatusResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ws/logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "WebSocket endpoint. Frames are JSON `{event,…}` objects (see backend/internal/logstream) and periodic `{event:\"dropped\",count:N}` control messages when a slow consumer lags the hub.",
+                "tags": [
+                    "logs"
+                ],
+                "summary": "Subscribe to the live event stream",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "substring filter applied to each frame before send",
+                        "name": "filter",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "switching protocols",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "internal_api.APIError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.BulkAction": {
+            "type": "object",
+            "required": [
+                "action",
+                "id"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "apply",
+                        "disable"
+                    ]
+                },
+                "id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.BulkRequest": {
+            "type": "object",
+            "required": [
+                "actions"
+            ],
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/internal_api.BulkAction"
+                    }
+                }
+            }
+        },
+        "internal_api.BulkResponse": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.BulkResultItem"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/internal_api.BulkSummary"
+                }
+            }
+        },
+        "internal_api.BulkResultItem": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.BulkSummary": {
+            "type": "object",
+            "properties": {
+                "applied": {
+                    "type": "integer"
+                },
+                "disabled": {
+                    "type": "integer"
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api.ContainerCounts": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "integer"
+                },
+                "running": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api.ContainerDTO": {
+            "type": "object",
+            "properties": {
+                "defaultPolicy": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "firewallStatus": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ruleSets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.FirewallRuleSetDTO"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.FirewallRuleSetDTO": {
+            "type": "object",
+            "properties": {
+                "allowlist": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "blocklist": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "geoAllow": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "geoBlock": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "log": {
+                    "type": "boolean"
+                },
+                "logPrefix": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ports": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "profile": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "rateLimit": {
+                    "$ref": "#/definitions/internal_api.RateLimitDTO"
+                }
+            }
+        },
+        "internal_api.PolicyDetail": {
+            "type": "object",
+            "properties": {
+                "dsl": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ruleSets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.FirewallRuleSetDTO"
+                    }
+                },
+                "source": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.PolicySimulateResponse": {
+            "type": "object",
+            "properties": {
+                "container": {
+                    "type": "string"
+                },
+                "defaultPolicy": {
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "labelsSeen": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "policy": {
+                    "type": "string"
+                },
+                "ruleSets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.FirewallRuleSetDTO"
+                    }
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "internal_api.PolicySummary": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "rules": {
+                    "type": "integer"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.ProfileEntry": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.RateLimitDTO": {
+            "type": "object",
+            "properties": {
+                "burst": {
+                    "type": "integer"
+                },
+                "rate": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api.RuleEntry": {
+            "type": "object",
+            "properties": {
+                "containerID": {
+                    "type": "string"
+                },
+                "containerName": {
+                    "type": "string"
+                },
+                "defaultPolicy": {
+                    "type": "string"
+                },
+                "ruleSets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.FirewallRuleSetDTO"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.StatsResponse": {
+            "type": "object",
+            "properties": {
+                "containers": {
+                    "$ref": "#/definitions/internal_api.ContainerCounts"
+                },
+                "traffic": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.TrafficBucket"
+                    }
+                }
+            }
+        },
+        "internal_api.StatusResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.TrafficBucket": {
+            "type": "object",
+            "properties": {
+                "accepted": {
+                    "type": "integer"
+                },
+                "dropped": {
+                    "type": "integer"
+                },
+                "ts": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.approveRequest": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.approveResponse": {
+            "type": "object",
+            "properties": {
+                "container_id": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "peers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "ports": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "snippet": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.policySimulateRequest": {
+            "type": "object",
+            "properties": {
+                "containerID": {
+                    "type": "string"
+                },
+                "dsl": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "internal_api.policyValidateRequest": {
+            "type": "object",
+            "required": [
+                "dsl"
+            ],
+            "properties": {
+                "dsl": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.policyValidateResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "internal_api.policyWriteRequest": {
+            "type": "object",
+            "required": [
+                "dsl"
+            ],
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "dsl": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.rejectRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

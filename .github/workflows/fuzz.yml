@@ -1,0 +1,95 @@
+name: Fuzz (nightly)
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      fuzztime:
+        description: "Fuzz duration per target (e.g. 10m, 30m, 1h)"
+        required: false
+        default: "10m"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  fuzz:
+    name: Native Go fuzz
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: docker-labels
+            package: ./internal/docker/...
+            func: FuzzParseLabels
+          - name: config-suffix
+            package: ./internal/config/...
+            func: FuzzValidateSuffix
+          - name: config-legacy-chains
+            package: ./internal/config/...
+            func: FuzzDeriveLegacyChains
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: backend/go.sum
+
+      - name: go test -fuzz
+        env:
+          FUZZTIME: ${{ github.event.inputs.fuzztime || '10m' }}
+        run: |
+          set -o pipefail
+          go test -run '^$' -fuzz='^${{ matrix.target.func }}$' -fuzztime="$FUZZTIME" ${{ matrix.target.package }} 2>&1 | tee fuzz.log
+          {
+            echo "## Fuzz crash: ${{ matrix.target.name }}"
+            echo
+            echo "- Target: \`${{ matrix.target.func }}\`"
+            echo "- Package: \`${{ matrix.target.package }}\`"
+            echo "- Duration budget: $FUZZTIME"
+            echo "- Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            echo "<details><summary>Tail of fuzz output</summary>"
+            echo
+            echo '```'
+            tail -n 200 fuzz.log
+            echo '```'
+            echo
+            echo "</details>"
+          } > issue-body.md
+
+      - name: Upload corpus on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-corpus-${{ matrix.target.name }}
+          path: backend/**/testdata/fuzz/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload fuzz log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-log-${{ matrix.target.name }}
+          path: backend/fuzz.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: File issue on failure
+        if: failure() && github.event_name == 'schedule'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "Fuzz crash: ${{ matrix.target.name }} (${{ github.run_id }})"
+          content-filepath: backend/issue-body.md
+          labels: |
+            bug
+            fuzz
+            automated

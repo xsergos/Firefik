@@ -1,0 +1,47 @@
+groups:
+  - name: firefik.rules
+    rules:
+      - alert: FirefikDown
+        expr: up{job="firefik"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Firefik backend is down"
+          description: "The firefik /metrics endpoint has been unreachable for 2 minutes. The host is either without firewall enforcement or with stale rules."
+
+      - alert: FirefikApplyErrorRate
+        expr: rate(firefik_engine_apply_errors_total[10m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated rule-apply error rate"
+          description: "Firefik is failing to apply container rules. Investigate recent container events and the audit log."
+
+      - alert: FirefikReconcileStalling
+        expr: histogram_quantile(0.95, rate(firefik_engine_reconcile_duration_seconds_bucket[10m])) > 1.0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reconcile p95 above 1s"
+          description: "Reconciler is slow; likely Docker API contention. Consider enabling the socket-proxy profile."
+
+      - alert: FirefikOrphansCleaned
+        expr: increase(firefik_engine_orphans_cleaned_total[1h]) > 5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Orphan chains being cleaned"
+          description: "Containers are being removed outside of a graceful firefik shutdown, leaving chains for cleanup. Not urgent, but investigate if persistent."
+
+      - alert: FirefikLogstreamDrops
+        expr: rate(firefik_logstream_dropped_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Log stream dropping messages"
+          description: "Audit / packet-log stream is overflowing. Consumers are too slow or the firewall is taking unusual traffic spikes."
