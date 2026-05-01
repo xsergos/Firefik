@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   tests: true
@@ -9,8 +11,6 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - gosec
     - misspell
     - prealloc
@@ -20,20 +20,23 @@ linters:
     - bodyclose
     - contextcheck
     - errorlint
-
-linters-settings:
-  gosec:
-    excludes:
-      - G104
-  revive:
+  settings:
+    gosec:
+      excludes:
+        - G104
+    revive:
+      rules:
+        - name: var-naming
+        - name: exported
+          disabled: true
+  exclusions:
     rules:
-      - name: var-naming
-      - name: exported
-        disabled: true
+      - path: _test\.go
+        linters:
+          - gosec
+          - prealloc
 
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gosec
-        - prealloc
+formatters:
+  enable:
+    - gofmt
+    - goimports

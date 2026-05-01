@@ -30,9 +30,13 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.62
+          version: latest
           working-directory: backend
           args: --timeout=5m
+
+      - name: golangci-lint fmt
+        working-directory: backend
+        run: golangci-lint fmt --diff
 
       - name: openapi drift check
         run: |
