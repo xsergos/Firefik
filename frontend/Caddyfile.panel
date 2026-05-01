@@ -1,0 +1,38 @@
+{
+    auto_https off
+}
+
+:80 {
+    encode zstd gzip
+
+    header {
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "same-origin"
+        Permissions-Policy "interest-cohort=(), camera=(), microphone=(), geolocation=()"
+        Content-Security-Policy "default-src 'self'; img-src 'self' data:; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        -Server
+    }
+
+    handle /api/* {
+        uri strip_prefix /api
+        rewrite * /v1{uri}
+        reverse_proxy https://controlplane:8443 {
+            header_up Authorization "Bearer {env.FIREFIK_CP_TOKEN}"
+            transport http {
+                tls
+                tls_insecure_skip_verify
+            }
+        }
+    }
+
+    handle /health {
+        respond "ok" 200
+    }
+
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+}
