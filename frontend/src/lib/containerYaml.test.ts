@@ -193,7 +193,7 @@ describe("downloadTextFile", () => {
     vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
       const el = origCreate(tag) as HTMLElement;
       if (tag === "a") {
-        (el as HTMLAnchorElement).click = anchorClick;
+        (el as HTMLAnchorElement).click = anchorClick as unknown as () => void;
       }
       return el;
     });
@@ -218,7 +218,7 @@ describe("downloadTextFile", () => {
     vi.mocked(document.createElement).mockImplementation((tag: string) => {
       const el = origCreate(tag);
       if (tag === "a") {
-        (el as HTMLAnchorElement).click = anchorClick;
+        (el as HTMLAnchorElement).click = anchorClick as unknown as () => void;
         anchors.push(el as HTMLAnchorElement);
       }
       return el;
