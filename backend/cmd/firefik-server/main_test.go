@@ -219,7 +219,7 @@ type fakeStream struct {
 
 func (f *fakeStream) SetHeader(metadata.MD) error  { return nil }
 func (f *fakeStream) SendHeader(metadata.MD) error { return nil }
-func (f *fakeStream) SetTrailer(metadata.MD)      {}
+func (f *fakeStream) SetTrailer(metadata.MD)       {}
 func (f *fakeStream) Context() context.Context     { return f.ctx }
 func (f *fakeStream) SendMsg(any) error            { return nil }
 func (f *fakeStream) RecvMsg(any) error            { return nil }

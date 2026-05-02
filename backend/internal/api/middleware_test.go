@@ -34,7 +34,8 @@ func newRequest(method, target string, body io.Reader) *http.Request {
 
 func TestWSCounter_Limits(t *testing.T) {
 	c := newWSCounter(2)
-	if !c.admit("1.2.3.4") || !c.admit("1.2.3.4") {
+	ok1, ok2 := c.admit("1.2.3.4"), c.admit("1.2.3.4")
+	if !ok1 || !ok2 {
 		t.Fatal("first two should be admitted")
 	}
 	if c.admit("1.2.3.4") {
@@ -62,7 +63,8 @@ func TestWSCounter_ZeroDisabled(t *testing.T) {
 
 func TestWSCounter_NegativeDisabled(t *testing.T) {
 	c := newWSCounter(-5)
-	if !c.admit("a") || !c.admit("a") {
+	ok1, ok2 := c.admit("a"), c.admit("a")
+	if !ok1 || !ok2 {
 		t.Fatal("negative limit should be unlimited")
 	}
 	c.release("a")
@@ -90,7 +92,8 @@ func TestWSCounter_ReleaseDeletesWhenZero(t *testing.T) {
 	if stillTracked {
 		t.Fatal("byIP entry should be deleted when counter drops to zero")
 	}
-	if !c.admit("solo") || !c.admit("solo") {
+	ok1, ok2 := c.admit("solo"), c.admit("solo")
+	if !ok1 || !ok2 {
 		t.Fatal("fresh tracking: should admit up to max again")
 	}
 	if c.admit("solo") {

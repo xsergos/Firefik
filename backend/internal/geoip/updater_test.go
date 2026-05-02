@@ -139,7 +139,7 @@ func TestDownloadRawMMDB(t *testing.T) {
 		Version:     "test",
 	}, "0 0 * * *", noopLogger(), nil)
 
-	changed, err := u.download()
+	changed, err := u.download(context.Background())
 	if err != nil {
 		t.Fatalf("download: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestDownloadArchive(t *testing.T) {
 		Version:     "test",
 	}, "0 0 * * *", noopLogger(), nil)
 
-	changed, err := u.download()
+	changed, err := u.download(context.Background())
 	if err != nil {
 		t.Fatalf("download: %v", err)
 	}
@@ -214,10 +214,10 @@ func TestDownloadETagNotModified(t *testing.T) {
 		Version:     "test",
 	}, "0 0 * * *", noopLogger(), nil)
 
-	if changed, err := u.download(); err != nil || !changed {
+	if changed, err := u.download(context.Background()); err != nil || !changed {
 		t.Fatalf("first download: changed=%v err=%v", changed, err)
 	}
-	if changed, err := u.download(); err != nil || changed {
+	if changed, err := u.download(context.Background()); err != nil || changed {
 		t.Fatalf("second download should be 304: changed=%v err=%v", changed, err)
 	}
 	if hits != 2 {
@@ -236,7 +236,7 @@ func TestDownloadHTTPError(t *testing.T) {
 		DownloadURL: srv.URL + "/db.mmdb",
 	}, "0 0 * * *", noopLogger(), nil)
 
-	_, err := u.download()
+	_, err := u.download(context.Background())
 	if err == nil {
 		t.Fatal("want error on 503")
 	}
@@ -256,7 +256,7 @@ func TestDownloadRedirectCap(t *testing.T) {
 		Source:      SourceURL,
 		DownloadURL: srv.URL + "/loop",
 	}, "0 0 * * *", noopLogger(), nil)
-	_, err := u.download()
+	_, err := u.download(context.Background())
 	if err == nil {
 		t.Fatal("want error on infinite redirect")
 	}
@@ -289,7 +289,7 @@ func TestDownloadIfMissing_AlreadyPresent(t *testing.T) {
 		Source:      SourceURL,
 		DownloadURL: srv.URL + "/db.mmdb",
 	}, "0 0 * * *", noopLogger(), nil)
-	if err := u.downloadIfMissing(); err != nil {
+	if err := u.downloadIfMissing(context.Background()); err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	if calls != 0 {
@@ -310,7 +310,7 @@ func TestDownloadIfMissing_FetchSucceeds(t *testing.T) {
 		Source:      SourceURL,
 		DownloadURL: srv.URL + "/db.mmdb",
 	}, "0 0 * * *", noopLogger(), func(d *DB) { got = d })
-	if err := u.downloadIfMissing(); err != nil {
+	if err := u.downloadIfMissing(context.Background()); err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	if got == nil {
@@ -330,7 +330,7 @@ func TestDownloadIfMissing_FetchFails(t *testing.T) {
 		Source:      SourceURL,
 		DownloadURL: srv.URL + "/db.mmdb",
 	}, "0 0 * * *", noopLogger(), nil)
-	if err := u.downloadIfMissing(); err == nil {
+	if err := u.downloadIfMissing(context.Background()); err == nil {
 		t.Fatal("expected error on 500")
 	}
 }

@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -141,14 +142,14 @@ func TestNewGRPCClientPreservesTimeout(t *testing.T) {
 
 func TestSendSnapshotStreamDown(t *testing.T) {
 	c := NewGRPCClient(GRPCClientConfig{})
-	if err := c.SendSnapshot(AgentSnapshot{}); err != ErrStreamDown {
+	if err := c.SendSnapshot(AgentSnapshot{}); !errors.Is(err, ErrStreamDown) {
 		t.Errorf("got %v, want ErrStreamDown", err)
 	}
 }
 
 func TestSendAuditStreamDown(t *testing.T) {
 	c := NewGRPCClient(GRPCClientConfig{})
-	if err := c.SendAudit(map[string]any{"k": "v"}); err != ErrStreamDown {
+	if err := c.SendAudit(map[string]any{"k": "v"}); !errors.Is(err, ErrStreamDown) {
 		t.Errorf("got %v, want ErrStreamDown", err)
 	}
 }

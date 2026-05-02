@@ -678,11 +678,8 @@ func TestStreamClientCloseSendEndsCleanly(t *testing.T) {
 	}
 	for {
 		_, err := stream.Recv()
-		if err == io.EOF || err == nil {
-			if err == nil {
-				continue
-			}
-			break
+		if err == nil {
+			continue
 		}
 		break
 	}

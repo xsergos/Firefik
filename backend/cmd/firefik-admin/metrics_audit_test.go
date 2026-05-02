@@ -38,9 +38,9 @@ func TestAnalyseMetrics_Counts(t *testing.T) {
 		t.Fatalf("expected 0 exceeded with high threshold, got %d", r.Exceeded)
 	}
 	want := map[string]int{
-		"firefik_engine_reconcile_total":             1,
-		"firefik_engine_apply_errors":                3,
-		"firefik_packets":                            3,
+		"firefik_engine_reconcile_total":            1,
+		"firefik_engine_apply_errors":               3,
+		"firefik_packets":                           3,
 		"firefik_engine_reconcile_duration_seconds": 4,
 	}
 	for _, m := range r.Metrics {

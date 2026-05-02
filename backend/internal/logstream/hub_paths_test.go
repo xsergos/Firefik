@@ -9,9 +9,8 @@ import (
 
 func TestHubSubscribeFallbackWhenRegisterFull(t *testing.T) {
 	h := NewHub(discardLogger())
-	clients := make([]*Client, 0, 100)
 	for i := 0; i < 100; i++ {
-		clients = append(clients, h.Subscribe())
+		_ = h.Subscribe()
 	}
 	if len(h.clients)+len(h.register) < 100 {
 		t.Errorf("expected clients to be tracked: clients=%d register=%d", len(h.clients), len(h.register))

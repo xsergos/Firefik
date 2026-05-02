@@ -153,7 +153,7 @@ func (e *Engine) SetGeoDB(db *geoip.DB) {
 	e.geoDB = db
 	e.mu.Unlock()
 	if old != nil {
-		old.Close()
+		_ = old.Close()
 	}
 }
 
@@ -163,7 +163,7 @@ func (e *Engine) Close() {
 	e.geoDB = nil
 	e.mu.Unlock()
 	if db != nil {
-		db.Close()
+		_ = db.Close()
 	}
 }
 

@@ -95,9 +95,9 @@ func TestEmitSinkError(t *testing.T) {
 
 func TestShortID(t *testing.T) {
 	cases := map[string]string{
-		"":             "",
-		"abc":          "abc",
-		"abcdefghijkl": "abcdefghijkl",
+		"":                 "",
+		"abc":              "abc",
+		"abcdefghijkl":     "abcdefghijkl",
 		"abcdefghijklmnop": "abcdefghijkl",
 	}
 	for in, want := range cases {

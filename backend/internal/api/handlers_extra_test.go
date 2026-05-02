@@ -69,23 +69,6 @@ func TestHandleBulkContainersDisableInvalidID(t *testing.T) {
 	}
 }
 
-type fakeDocker struct {
-	containers []docker.ContainerInfo
-}
-
-func (f fakeDocker) ListContainers(ctx context.Context) ([]docker.ContainerInfo, error) {
-	return f.containers, nil
-}
-
-func (f fakeDocker) Inspect(ctx context.Context, id string) (docker.ContainerInfo, bool, error) {
-	for _, c := range f.containers {
-		if c.ID == id {
-			return c, true, nil
-		}
-	}
-	return docker.ContainerInfo{}, false, nil
-}
-
 func TestHandleGetTemplates(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{}

@@ -79,14 +79,14 @@ func (u *Updater) Run(ctx context.Context) error {
 		return nil
 	}
 
-	if err := u.downloadIfMissing(); err != nil {
+	if err := u.downloadIfMissing(ctx); err != nil {
 		u.logger.Warn("initial GeoIP download failed", "error", err)
 	}
 
 	u.cron = cron.New()
 	_, err := u.cron.AddFunc(u.cronExpr, func() {
 		u.logger.Info("GeoIP scheduled update starting")
-		changed, err := u.download()
+		changed, err := u.download(ctx)
 		if err != nil {
 			u.logger.Error("GeoIP update failed", "error", err)
 			return
@@ -128,12 +128,12 @@ func (u *Updater) validate() error {
 	}
 }
 
-func (u *Updater) downloadIfMissing() error {
+func (u *Updater) downloadIfMissing(ctx context.Context) error {
 	if _, err := os.Stat(u.dbPath); err == nil {
 		return nil
 	}
 	u.logger.Info("GeoIP database not found, downloading", "path", u.dbPath, "source", u.source.Source)
-	changed, err := u.download()
+	changed, err := u.download(ctx)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func resolveDownloadURL(src SourceConfig) (url string, archived bool, err error)
 	}
 }
 
-func (u *Updater) download() (bool, error) {
+func (u *Updater) download(parentCtx context.Context) (bool, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
@@ -171,7 +171,7 @@ func (u *Updater) download() (bool, error) {
 		return false, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, downloadTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -224,13 +224,15 @@ func (u *Updater) download() (bool, error) {
 	return true, nil
 }
 
+const maxMMDBSize = 256 << 20
+
 func writeRawMMDB(r io.Reader, destPath string) error {
 	f, err := os.Create(destPath)
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(f, r); err != nil {
-		f.Close()
+	if _, err := io.Copy(f, io.LimitReader(r, maxMMDBSize)); err != nil {
+		_ = f.Close()
 		return err
 	}
 	return f.Close()
@@ -246,7 +248,7 @@ func extractMMDB(r io.Reader, destPath string) error {
 	tr := tar.NewReader(gz)
 	for {
 		hdr, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -257,8 +259,8 @@ func extractMMDB(r io.Reader, destPath string) error {
 			if err != nil {
 				return err
 			}
-			if _, err := io.Copy(f, tr); err != nil {
-				f.Close()
+			if _, err := io.Copy(f, io.LimitReader(tr, maxMMDBSize)); err != nil {
+				_ = f.Close()
 				return err
 			}
 			return f.Close()

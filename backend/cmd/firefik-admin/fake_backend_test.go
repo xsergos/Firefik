@@ -29,8 +29,8 @@ type fakeBackend struct {
 	listCalls    int
 	healthCalls  int
 
-	applied  []string
-	removed  []string
+	applied     []string
+	removed     []string
 	appliedArgs [][]any
 }
 

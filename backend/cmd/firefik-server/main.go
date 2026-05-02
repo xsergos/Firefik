@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -231,7 +232,7 @@ func run() error {
 		pb.RegisterControlPlaneServer(gs, grpcSvc)
 
 		g.Go(func() error {
-			if err := gs.Serve(gln); err != nil && err != grpc.ErrServerStopped {
+			if err := gs.Serve(gln); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 				return fmt.Errorf("grpc serve: %w", err)
 			}
 			return nil

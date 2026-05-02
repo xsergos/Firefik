@@ -76,15 +76,15 @@ const (
 )
 
 type PendingApproval struct {
-	ID                string         `json:"id"`
-	PolicyName        string         `json:"policy_name"`
-	ProposedBody      string         `json:"proposed_body"`
-	Requester         string         `json:"requester"`
-	RequesterFinger   string         `json:"requester_fingerprint"`
-	RequestedAt       time.Time      `json:"requested_at"`
-	Approver          string         `json:"approver,omitempty"`
-	ApproverFinger    string         `json:"approver_fingerprint,omitempty"`
-	ApprovedAt        *time.Time     `json:"approved_at,omitempty"`
-	Status            ApprovalStatus `json:"status"`
-	RejectionComment  string         `json:"rejection_comment,omitempty"`
+	ID               string         `json:"id"`
+	PolicyName       string         `json:"policy_name"`
+	ProposedBody     string         `json:"proposed_body"`
+	Requester        string         `json:"requester"`
+	RequesterFinger  string         `json:"requester_fingerprint"`
+	RequestedAt      time.Time      `json:"requested_at"`
+	Approver         string         `json:"approver,omitempty"`
+	ApproverFinger   string         `json:"approver_fingerprint,omitempty"`
+	ApprovedAt       *time.Time     `json:"approved_at,omitempty"`
+	Status           ApprovalStatus `json:"status"`
+	RejectionComment string         `json:"rejection_comment,omitempty"`
 }

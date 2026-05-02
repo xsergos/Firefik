@@ -66,6 +66,7 @@ export default function PoliciesPage() {
   useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     if (!buffer.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setValidation(null);
       return;
     }

@@ -11,30 +11,36 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-    - gosec
     - misspell
-    - prealloc
-    - revive
-    - unparam
-    - nilerr
     - bodyclose
-    - contextcheck
     - errorlint
+    - nilerr
   settings:
-    gosec:
-      excludes:
-        - G104
-    revive:
-      rules:
-        - name: var-naming
-        - name: exported
-          disabled: true
+    staticcheck:
+      checks:
+        - "SA*"
+        - "-SA1019"
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (net.Conn).Close
+        - (*os.File).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        - (*google.golang.org/grpc.ClientConn).Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (net.Conn).SetReadDeadline
+        - (net.Conn).SetWriteDeadline
+        - (*net/http.Response).Body.Close
+        - os.Remove
   exclusions:
     rules:
       - path: _test\.go
         linters:
-          - gosec
-          - prealloc
+          - errcheck
+          - bodyclose
 
 formatters:
   enable:

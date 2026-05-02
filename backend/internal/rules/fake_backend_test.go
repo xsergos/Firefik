@@ -126,16 +126,6 @@ func (b *recordingBackend) Healthy() (HealthReport, error) {
 	return HealthReport{Backend: "recording"}, nil
 }
 
-func (b *recordingBackend) snapshotApplied() []string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	out := make([]string, 0, len(b.applied))
-	for id := range b.applied {
-		out = append(out, id)
-	}
-	return out
-}
-
 func (b *recordingBackend) seedApplied(ids ...string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()

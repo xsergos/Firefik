@@ -52,17 +52,17 @@ func cmdMetricsAudit(args []string) error {
 }
 
 type metricCardinality struct {
-	Name        string `json:"name"`
-	Cardinality int    `json:"cardinality"`
+	Name        string   `json:"name"`
+	Cardinality int      `json:"cardinality"`
 	LabelKeys   []string `json:"label_keys"`
-	Exceeds     bool   `json:"exceeds"`
+	Exceeds     bool     `json:"exceeds"`
 }
 
 type metricsAuditReport struct {
-	Threshold int                  `json:"threshold"`
-	Total     int                  `json:"total_metrics"`
-	Exceeded  int                  `json:"exceeded_metrics"`
-	Metrics   []metricCardinality  `json:"metrics"`
+	Threshold int                 `json:"threshold"`
+	Total     int                 `json:"total_metrics"`
+	Exceeded  int                 `json:"exceeded_metrics"`
+	Metrics   []metricCardinality `json:"metrics"`
 }
 
 func openMetricsSource(source, token string, insecure bool, timeout time.Duration) (io.Reader, io.Closer, error) {

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -224,7 +225,7 @@ func (e errCloser) Close() error { return e.err }
 func TestCloseAllReturnsFirstError(t *testing.T) {
 	want := os.ErrPermission
 	got := closeAll(errCloser{}, errCloser{err: want}, errCloser{err: os.ErrInvalid})
-	if got != want {
+	if !errors.Is(got, want) {
 		t.Errorf("got %v want %v", got, want)
 	}
 }
