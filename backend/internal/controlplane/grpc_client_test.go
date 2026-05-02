@@ -156,7 +156,7 @@ func TestSendAuditStreamDown(t *testing.T) {
 
 func TestSendHeartbeatStreamDown(t *testing.T) {
 	c := NewGRPCClient(GRPCClientConfig{})
-	if err := c.SendHeartbeat(); err != ErrStreamDown {
+	if err := c.SendHeartbeat(); !errors.Is(err, ErrStreamDown) {
 		t.Errorf("got %v, want ErrStreamDown", err)
 	}
 }

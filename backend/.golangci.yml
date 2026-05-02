@@ -41,6 +41,9 @@ linters:
         linters:
           - errcheck
           - bodyclose
+      - source: "^\\s*defer .*\\.(Close|SetReadDeadline|SetWriteDeadline|SetDeadline)\\("
+        linters:
+          - errcheck
 
 formatters:
   enable:

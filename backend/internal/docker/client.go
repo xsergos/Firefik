@@ -30,7 +30,7 @@ type ContainerInfo struct {
 }
 
 func NewClient() (*Client, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation()) //nolint:govet
 	if err != nil {
 		return nil, fmt.Errorf("create docker client: %w", err)
 	}

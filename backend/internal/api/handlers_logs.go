@@ -39,7 +39,7 @@ func (s *Server) handleWSLogs(c *gin.Context) {
 	client := s.hub.Subscribe()
 	defer s.hub.Unsubscribe(client)
 
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	conn.SetPongHandler(func(string) error {
 		return conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	})

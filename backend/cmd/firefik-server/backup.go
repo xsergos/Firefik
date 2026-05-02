@@ -54,14 +54,14 @@ func runBackup(args []string) error {
 
 	dbHash, err := writeFileToTar(tw, *dbPath, "db/firefik.db")
 	if err != nil {
-		closeAll(tw, gz, f)
-		os.Remove(tmp)
+		_ = closeAll(tw, gz, f)
+		_ = os.Remove(tmp)
 		return err
 	}
 	if *caStateDir != "" {
 		if err := writeDirToTar(tw, *caStateDir, "ca"); err != nil {
-			closeAll(tw, gz, f)
-			os.Remove(tmp)
+			_ = closeAll(tw, gz, f)
+			_ = os.Remove(tmp)
 			return err
 		}
 	}
@@ -76,22 +76,22 @@ func runBackup(args []string) error {
 	}
 	mfBytes, err := json.MarshalIndent(mf, "", "  ")
 	if err != nil {
-		closeAll(tw, gz, f)
-		os.Remove(tmp)
+		_ = closeAll(tw, gz, f)
+		_ = os.Remove(tmp)
 		return err
 	}
 	if err := writeBytesToTar(tw, "manifest.json", mfBytes); err != nil {
-		closeAll(tw, gz, f)
-		os.Remove(tmp)
+		_ = closeAll(tw, gz, f)
+		_ = os.Remove(tmp)
 		return err
 	}
 
 	if err := closeAll(tw, gz, f); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return err
 	}
 	if err := os.Rename(tmp, *out); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "backup written: %s (db sha256=%s)\n", *out, dbHash)
