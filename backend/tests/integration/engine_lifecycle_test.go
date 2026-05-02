@@ -52,11 +52,11 @@ func makeContainer(id, name, ip string) docker.ContainerInfo {
 		Name:   name,
 		Status: "running",
 		Labels: map[string]string{
-			"firefik.enable":                  "true",
-			"firefik.defaultpolicy":           "DROP",
-			"firefik.firewall.web.ports":      "80,443",
-			"firefik.firewall.web.allowlist":  "10.0.0.0/8",
-			"firefik.firewall.web.protocol":   "tcp",
+			"firefik.enable":                 "true",
+			"firefik.defaultpolicy":          "DROP",
+			"firefik.firewall.web.ports":     "80,443",
+			"firefik.firewall.web.allowlist": "10.0.0.0/8",
+			"firefik.firewall.web.protocol":  "tcp",
 		},
 		Networks: map[string]docker.NetworkEndpoint{
 			"bridge": {IP: ip, PrefixLen: 24},
