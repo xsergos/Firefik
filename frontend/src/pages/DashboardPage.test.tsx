@@ -65,6 +65,17 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
+vi.mock("@/lib/fleetApi", () => ({
+  fetchFleetStats: vi.fn(),
+}));
+
+let panelMode = false;
+vi.mock("@/lib/panelMode", () => ({
+  get isPanelMode() {
+    return panelMode;
+  },
+}));
+
 function renderPage() {
   const qc = new QueryClient({
     defaultOptions: {
@@ -91,8 +102,18 @@ function buildStats(overrides?: Partial<StatsResponse>): StatsResponse {
 }
 
 beforeEach(async () => {
+  panelMode = false;
   const api = await import("@/lib/api");
   vi.mocked(api.fetchStats).mockResolvedValue(buildStats());
+  const fleet = await import("@/lib/fleetApi");
+  vi.mocked(fleet.fetchFleetStats).mockResolvedValue({
+    agents: { total: 4, healthy: 3, stale: 1, dead: 0, unknown: 0 },
+    containers: { total: 9, running: 7, enabled: 5 },
+    traffic: [
+      { ts: "2026-04-23T10:00:00Z", accepted: 200, dropped: 8 },
+      { ts: "2026-04-23T10:01:00Z", accepted: 220, dropped: 10 },
+    ],
+  });
 });
 
 afterEach(() => {
@@ -150,6 +171,43 @@ describe("DashboardPage", () => {
     renderPage();
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(/Failed to load dashboard stats/i),
+    );
+  });
+});
+
+describe("FleetDashboard (panel mode)", () => {
+  it("renders the fleet stats and traffic chart", async () => {
+    panelMode = true;
+    renderPage();
+    expect(await screen.findByRole("heading", { name: "Fleet dashboard" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Agents (total)")).toBeInTheDocument());
+    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("Healthy")).toBeInTheDocument();
+    expect(screen.getByText("Containers (total)")).toBeInTheDocument();
+    expect(screen.getByText(/Fleet traffic/)).toBeInTheDocument();
+  });
+
+  it("renders the fleet empty-state when traffic is missing", async () => {
+    panelMode = true;
+    const fleet = await import("@/lib/fleetApi");
+    vi.mocked(fleet.fetchFleetStats).mockResolvedValue({
+      agents: { total: 0, healthy: 0, stale: 0, dead: 0, unknown: 0 },
+      containers: { total: 0, running: 0, enabled: 0 },
+      traffic: [],
+    });
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText(/No traffic from any agent yet/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("renders the fleet error state when fetchFleetStats rejects", async () => {
+    panelMode = true;
+    const fleet = await import("@/lib/fleetApi");
+    vi.mocked(fleet.fetchFleetStats).mockRejectedValue(new Error("nope"));
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/Failed to load fleet stats/i),
     );
   });
 });

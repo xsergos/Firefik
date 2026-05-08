@@ -175,20 +175,42 @@ func TestHandleWSLogsUpgradeAndStream(t *testing.T) {
 	}
 	defer conn.Close()
 
-	deadline := time.After(2 * time.Second)
-	for {
-		s.hub.Broadcast([]byte("dropme: ignore"))
-		s.hub.Broadcast([]byte("keep: yes"))
-		conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	type readResult struct {
+		msg []byte
+		err error
+	}
+	results := make(chan readResult, 1)
+	go func() {
 		_, msg, err := conn.ReadMessage()
-		if err == nil && strings.Contains(string(msg), "keep") {
-			break
+		results <- readResult{msg: msg, err: err}
+	}()
+
+	pumpCtx, stopPump := context.WithCancel(context.Background())
+	defer stopPump()
+	go func() {
+		ticker := time.NewTicker(50 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-pumpCtx.Done():
+				return
+			case <-ticker.C:
+				s.hub.Broadcast([]byte("dropme: ignore"))
+				s.hub.Broadcast([]byte("keep: yes"))
+			}
 		}
-		select {
-		case <-deadline:
-			t.Fatalf("did not receive filtered message: lastErr=%v", err)
-		default:
+	}()
+
+	select {
+	case res := <-results:
+		if res.err != nil {
+			t.Fatalf("read: %v", res.err)
 		}
+		if !strings.Contains(string(res.msg), "keep") {
+			t.Fatalf("expected message to contain 'keep', got %q", string(res.msg))
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("did not receive filtered message within deadline")
 	}
 }
 

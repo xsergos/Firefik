@@ -31,6 +31,7 @@
     "deselectAllAria": "Deselect all",
     "bulkDisableTitle": "Disable {{count}} container(s)?",
     "bulkDisableBody": "All Firefik rules will be removed immediately for the selected containers. To restore, press «Apply selected» or re-apply per row.",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "detailDescription": "Container detail with rule sets and metadata."
   }
 }

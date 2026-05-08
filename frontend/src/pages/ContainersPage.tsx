@@ -366,6 +366,9 @@ export default function ContainersPage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{selected?.name}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {t("containers.detailDescription")}
+            </DialogDescription>
           </DialogHeader>
           {selected && <ContainerDetail ctr={selected} />}
         </DialogContent>
