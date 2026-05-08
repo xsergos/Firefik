@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -28,6 +30,14 @@ const (
 	spiffePathPrefix = "/agent/"
 )
 
+const revokedFile = "revoked.json"
+
+type RevokedEntry struct {
+	Serial    string    `json:"serial"`
+	Reason    string    `json:"reason,omitempty"`
+	RevokedAt time.Time `json:"revoked_at"`
+}
+
 type CA struct {
 	StateDir    string
 	TrustDomain string
@@ -36,6 +46,9 @@ type CA struct {
 	rootKey     *ecdsa.PrivateKey
 	issuingCert *x509.Certificate
 	issuingKey  *ecdsa.PrivateKey
+
+	mu      sync.RWMutex
+	revoked map[string]RevokedEntry
 }
 
 func Open(stateDir, trustDomain string) (*CA, error) {
@@ -162,7 +175,80 @@ func (c *CA) load() error {
 	c.rootKey = rootKey
 	c.issuingCert = issuingCert
 	c.issuingKey = issuingKey
+	if err := c.loadRevoked(); err != nil {
+		return fmt.Errorf("revoked list: %w", err)
+	}
 	return nil
+}
+
+func (c *CA) loadRevoked() error {
+	c.revoked = map[string]RevokedEntry{}
+	path := filepath.Join(c.StateDir, revokedFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var entries []RevokedEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return err
+	}
+	for _, e := range entries {
+		c.revoked[strings.ToLower(e.Serial)] = e
+	}
+	return nil
+}
+
+func (c *CA) saveRevokedLocked() error {
+	entries := make([]RevokedEntry, 0, len(c.revoked))
+	for _, e := range c.revoked {
+		entries = append(entries, e)
+	}
+	data, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := filepath.Join(c.StateDir, revokedFile+".tmp")
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, filepath.Join(c.StateDir, revokedFile))
+}
+
+func (c *CA) Revoke(serial, reason string) error {
+	if serial == "" {
+		return errors.New("empty serial")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.revoked == nil {
+		c.revoked = map[string]RevokedEntry{}
+	}
+	key := strings.ToLower(serial)
+	c.revoked[key] = RevokedEntry{Serial: key, Reason: reason, RevokedAt: time.Now().UTC()}
+	return c.saveRevokedLocked()
+}
+
+func (c *CA) IsRevoked(serial string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.revoked == nil {
+		return false
+	}
+	_, ok := c.revoked[strings.ToLower(serial)]
+	return ok
+}
+
+func (c *CA) RevokedList() []RevokedEntry {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]RevokedEntry, 0, len(c.revoked))
+	for _, e := range c.revoked {
+		out = append(out, e)
+	}
+	return out
 }
 
 func (c *CA) RootPEM() []byte {
@@ -253,6 +339,29 @@ func (c *CA) Issue(req IssueRequest) (*IssueResult, error) {
 		NotAfter:  cert.NotAfter,
 		SPIFFEURI: spiffeURI.String(),
 	}, nil
+}
+
+func (c *CA) IssueFromCSR(csrPEM []byte, agentID string, ttl time.Duration) (*IssueResult, error) {
+	if agentID == "" {
+		return nil, errors.New("agent-id required")
+	}
+	block, _ := pem.Decode(csrPEM)
+	if block == nil {
+		return nil, errors.New("no PEM block in CSR")
+	}
+	csr, err := x509.ParseCertificateRequest(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse CSR: %w", err)
+	}
+	if err := csr.CheckSignature(); err != nil {
+		return nil, fmt.Errorf("CSR signature: %w", err)
+	}
+	res, err := c.Issue(IssueRequest{AgentID: agentID, TTL: ttl, PublicKey: csr.PublicKey})
+	if err != nil {
+		return nil, err
+	}
+	res.KeyPEM = nil
+	return res, nil
 }
 
 func (c *CA) spiffeURI(agentID string) (*url.URL, error) {

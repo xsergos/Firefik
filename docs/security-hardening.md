@@ -101,12 +101,27 @@ to "good to have".
 
 ### 3.2 Agent cert renewal window
 
-- **Why.** `firefik-admin enroll --renew --renew-window=72h` re-issues
-  before expiry. Missed renewal = agent disconnected from control plane.
-- **Verify.** Cron/systemd-timer that invokes enroll with `--renew`
-  every 12h; check `firefik_controlplane_agent_cert_days_until_expiry`
-  gauge stays ≥ 7 days (v0.11+).
-- **Remediate.** Shorten cron interval; alert on gauge ≤ 3.
+- **Why.** Agents drive their own renewal via the `/v1/renew` mTLS
+  endpoint — no operator bearer is involved (which would have re-
+  introduced the privilege-escalation surface mTLS was meant to close).
+  The agent reuses its enroll-time private key (CSR-mode), so only the
+  cert rotates. `firefik-admin enroll --renew` remains as a break-glass
+  path for when the agent's cert is past expiry and self-renewal can
+  no longer authenticate.
+- **Verify.**
+  - `firefik_agent_cert_renewed_total` increments once per rotation;
+    alert if `rate(firefik_agent_cert_renewed_total[7d]) == 0` for an
+    agent whose `_days_until_expiry` is below `FIREFIK_CONTROL_PLANE_
+    CERT_RENEW_BEFORE` (default 72h).
+  - `firefik_agent_cert_renew_failed_total{reason}` and the server-side
+    `firefik_controlplane_cert_renew_rejected_total{reason}` should
+    stay at zero outside maintenance.
+  - `firefik_controlplane_agent_cert_days_until_expiry` gauge stays
+    ≥ 7 days on healthy agents.
+- **Remediate.** Tune `FIREFIK_CONTROL_PLANE_CERT_RENEW_INTERVAL`
+  (default 30m) and `_BEFORE` (default 72h). Revoke a compromised cert
+  with `firefik-server mini-ca revoke --serial <hex> --reason …` —
+  every subsequent `/v1/renew` from that cert returns `403 revoked`.
 
 ### 3.3 TLS cert rotation (server)
 

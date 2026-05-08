@@ -106,6 +106,63 @@ Token semantics:
   token can no longer be exchanged); no public HTTP endpoint yet — let the
   TTL expire or delete the row out-of-band.
 
+## Self-renewal flow (mTLS-only)
+
+Agent-driven cert rotation that does **not** require an operator bearer
+token — the agent presents its current cert via mTLS, generates a CSR
+with its existing private key, and the server signs a fresh cert.
+
+```
+agent (CertRenewer)                     firefik-server
+─────────────────────                   ──────────────
+  loop every CERT_RENEW_INTERVAL
+    if remaining < CERT_RENEW_BEFORE
+      load existing private key
+      build CSR  (CN = agent_id, key = existing)
+      POST /v1/renew  ── mTLS handshake ──▶
+        body = { agent_id, ttl_seconds, csr_pem }
+                                              verify peer.SPIFFE → trust_domain
+                                              extract agent_id from peer SAN
+                                              reject if revoked.json contains serial
+                                              reject if remaining > 24h (renewal window)
+                                              parse CSR; require pubkey == peer pubkey
+                                              ca.IssueFromCSR(csr, agent_id, ttl)
+                                              audit "cert_renewed"
+      ◀── 200 { cert_pem, bundle_pem, serial, not_after_unix }
+      atomic write CertPath (key untouched)
+      gRPC client picks up rotated cert at next handshake
+      via tls.Config.GetClientCertificate (mtime-cached loader)
+```
+
+Key properties:
+
+- **No operator bearer involved.** Privilege-escalation surface (`enroll
+  any agent_id`) eliminated — peer cert SAN is the binding identity.
+- **Private key never rotates.** Agent reuses its enroll-time ECDSA-P256
+  key for every CSR. Less file movement, fewer chances for partial
+  rotations to wedge mTLS.
+- **Revocation closes the loop.** `firefik-server mini-ca revoke
+  --serial <hex>` writes to `<state-dir>/revoked.json`; subsequent
+  `/v1/renew` from that cert returns 403 + `cert_renew_rejected`
+  audit event. Operators can bind a stolen cert without touching CA keys.
+- **Hot-reload, no agent restart.** gRPC client TLS config uses
+  `GetClientCertificate` callback that re-reads the cert file when its
+  mtime changes; the active gRPC stream stays up, the next handshake
+  picks the new cert.
+- **`firefik-admin enroll --renew`** remains as an operator-driven
+  break-glass path (e.g. when the agent's cert is past expiry and self-
+  renewal can no longer authenticate).
+
+## Endpoints (HTTP, bootstrap-only and self-service)
+
+In addition to the operator REST surface below, two unauthenticated-but-
+auth-different bootstrap routes:
+
+- `POST /v1/enroll` — bearer or one-time enrollment token; issues both
+  cert and key (server keygen).
+- `POST /v1/renew` — mTLS only; CSR-based, key stays on agent;
+  rejects revoked serials.
+
 ## gRPC service surface
 
 Defined in [controlplane.proto](../backend/proto/controlplane/v1/controlplane.proto).

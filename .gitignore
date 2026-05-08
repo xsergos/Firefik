@@ -31,6 +31,7 @@ backend/cover-merged.out
 .idea/
 .vscode/
 .claude/
+.serena/
 *.swp
 *.swo
 

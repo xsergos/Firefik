@@ -56,17 +56,22 @@ HTTP `/v1/enroll` endpoint.
 | Method | Path | Caller | Purpose |
 |--------|------|--------|---------|
 | GET  | `/healthz` | anyone | Liveness probe (unauthenticated). |
-| POST | `/v1/enroll` | agent | Request/renew mTLS client cert from embedded mini-CA. |
+| POST | `/v1/enroll` | agent (bearer or one-time enrollment token) | Initial mTLS client cert from embedded mini-CA. |
+| POST | `/v1/renew`  | agent (mTLS only) | Self-renewal: re-issue cert when within renewal window; agent_id is enforced from the peer SPIFFE SAN. |
 
 ## Agent integration
 
 Agents (firefik-back) opt in by setting:
 
 - `FIREFIK_CONTROL_PLANE_GRPC=cp.example:8444`
+- `FIREFIK_CONTROL_PLANE_HTTP=https://cp.example:8443` (required for self-renewal)
 - `FIREFIK_CONTROL_PLANE_CA_CERT=/etc/firefik/ca-bundle.pem`
 - `FIREFIK_CONTROL_PLANE_CLIENT_CERT=/etc/firefik/client.crt`
 - `FIREFIK_CONTROL_PLANE_CLIENT_KEY=/etc/firefik/client.key`
 - `FIREFIK_CONTROL_PLANE_TOKEN=…` (optional; supplementary to mTLS)
+- `FIREFIK_CONTROL_PLANE_CERT_RENEW_BEFORE=259200` (default 72h, in seconds)
+- `FIREFIK_CONTROL_PLANE_CERT_RENEW_INTERVAL=1800` (default 30m, in seconds)
+- `FIREFIK_CONTROL_PLANE_CERT_RENEW_TTL=2592000` (default 720h, in seconds)
 
 On connection loss the agent degrades to local-only operation — the
 control plane is an observer, not a master.
@@ -75,6 +80,8 @@ control plane is an observer, not a master.
 
 - Embedded mini-CA subcommand (`firefik-server mini-ca init|issue`)
   + `/v1/enroll` endpoint + `firefik-admin enroll [--renew]`.
+- Agent-driven self-renewal via `/v1/renew` (mTLS only) — no operator
+  bearer required, agent rotates its own cert before expiry.
 - SPIFFE SVID trust-domain enforcement via
   `FIREFIK_CP_TRUST_DOMAIN` / `--trust-domain`.
 - gRPC-only transport.

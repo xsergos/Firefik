@@ -20,6 +20,10 @@ func runMiniCA(args []string) error {
 		return miniCAInit(args[1:])
 	case "issue":
 		return miniCAIssue(args[1:])
+	case "revoke":
+		return miniCARevoke(args[1:])
+	case "list-revoked":
+		return miniCAListRevoked(args[1:])
 	case "-h", "--help", "help":
 		miniCAUsage()
 		return nil
@@ -30,9 +34,51 @@ func runMiniCA(args []string) error {
 }
 
 func miniCAUsage() {
-	fmt.Fprintln(os.Stderr, "usage: firefik-server mini-ca <init|issue> [flags]")
-	fmt.Fprintln(os.Stderr, "  init   --state-dir <path> [--trust-domain spiffe://...]")
-	fmt.Fprintln(os.Stderr, "  issue  --state-dir <path> --agent-id <id> [--ttl 720h] [--out <dir>]")
+	fmt.Fprintln(os.Stderr, "usage: firefik-server mini-ca <init|issue|revoke|list-revoked> [flags]")
+	fmt.Fprintln(os.Stderr, "  init          --state-dir <path> [--trust-domain spiffe://...]")
+	fmt.Fprintln(os.Stderr, "  issue         --state-dir <path> --agent-id <id> [--ttl 720h] [--out <dir>]")
+	fmt.Fprintln(os.Stderr, "  revoke        --state-dir <path> --serial <hex> [--reason <text>]")
+	fmt.Fprintln(os.Stderr, "  list-revoked  --state-dir <path>")
+}
+
+func miniCARevoke(args []string) error {
+	fs := flag.NewFlagSet("mini-ca revoke", flag.ContinueOnError)
+	stateDir := fs.String("state-dir", defaultCAStateDir(), "CA state directory")
+	serial := fs.String("serial", "", "certificate serial (hex, lowercase)")
+	reason := fs.String("reason", "", "free-form revocation reason (optional)")
+	trustDomain := fs.String("trust-domain", "firefik.local", "SPIFFE trust domain")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *serial == "" {
+		return fmt.Errorf("--serial required")
+	}
+	ca, err := mca.Open(*stateDir, *trustDomain)
+	if err != nil {
+		return fmt.Errorf("open CA: %w", err)
+	}
+	if err := ca.Revoke(*serial, *reason); err != nil {
+		return fmt.Errorf("revoke: %w", err)
+	}
+	fmt.Printf("revoked: serial=%s reason=%q\n", *serial, *reason)
+	return nil
+}
+
+func miniCAListRevoked(args []string) error {
+	fs := flag.NewFlagSet("mini-ca list-revoked", flag.ContinueOnError)
+	stateDir := fs.String("state-dir", defaultCAStateDir(), "CA state directory")
+	trustDomain := fs.String("trust-domain", "firefik.local", "SPIFFE trust domain")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	ca, err := mca.Open(*stateDir, *trustDomain)
+	if err != nil {
+		return fmt.Errorf("open CA: %w", err)
+	}
+	for _, e := range ca.RevokedList() {
+		fmt.Printf("%s\t%s\t%s\n", e.Serial, e.RevokedAt.Format(time.RFC3339), e.Reason)
+	}
+	return nil
 }
 
 func miniCAInit(args []string) error {

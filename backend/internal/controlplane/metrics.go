@@ -50,11 +50,35 @@ var (
 		Name: "firefik_controlplane_agent_cert_days_until_expiry",
 		Help: "Days until the agent's mTLS client certificate expires. Negative means expired.",
 	}, []string{"agent_id", "spiffe_id"})
+
+	cpCertRenewedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "firefik_controlplane_cert_renewed_total",
+		Help: "Agent certificates re-issued through the /v1/renew mTLS endpoint.",
+	})
+
+	cpRenewRejectedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "firefik_controlplane_cert_renew_rejected_total",
+		Help: "Renewal attempts rejected, by reason.",
+	}, []string{"reason"})
+
+	AgentCertRenewedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "firefik_agent_cert_renewed_total",
+		Help: "Successful self-renewals performed by the agent.",
+	})
+
+	AgentCertRenewFailedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "firefik_agent_cert_renew_failed_total",
+		Help: "Self-renewal attempts that failed, by reason.",
+	}, []string{"reason"})
 )
 
 func IncCACertsIssued() { cpCACertsIssuedTotal.Inc() }
 
 func IncMTLSRejected(reason string) { cpMTLSRejectedTotal.WithLabelValues(reason).Inc() }
+
+func IncCertRenewed() { cpCertRenewedTotal.Inc() }
+
+func IncRenewRejected(reason string) { cpRenewRejectedTotal.WithLabelValues(reason).Inc() }
 
 func SetAgentCertExpiry(agentID, spiffeID string, daysUntil float64) {
 	AgentCertDaysUntilExpiry.WithLabelValues(agentID, spiffeID).Set(daysUntil)

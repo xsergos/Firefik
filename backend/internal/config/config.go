@@ -86,6 +86,9 @@ type Config struct {
 	ControlPlaneClientKey  string
 	ControlPlaneSnapshotS  int
 	ControlPlaneHeartbeatS int
+	CertRenewBeforeS       int
+	CertRenewIntervalS     int
+	CertRenewTTLS          int
 	TemplateSyncIntervalS  int
 	TemplateCacheDir       string
 }
@@ -167,6 +170,9 @@ func Load() *Config {
 		ControlPlaneClientKey:  SafePath(getEnv("FIREFIK_CONTROL_PLANE_CLIENT_KEY", "")),
 		ControlPlaneSnapshotS:  int(getEnvInt64("FIREFIK_CONTROL_PLANE_SNAPSHOT_INTERVAL", 30)),
 		ControlPlaneHeartbeatS: int(getEnvInt64("FIREFIK_CONTROL_PLANE_HEARTBEAT_INTERVAL", 30)),
+		CertRenewBeforeS:       int(getEnvInt64("FIREFIK_CONTROL_PLANE_CERT_RENEW_BEFORE", 72*3600)),
+		CertRenewIntervalS:     int(getEnvInt64("FIREFIK_CONTROL_PLANE_CERT_RENEW_INTERVAL", 30*60)),
+		CertRenewTTLS:          int(getEnvInt64("FIREFIK_CONTROL_PLANE_CERT_RENEW_TTL", 720*3600)),
 		TemplateSyncIntervalS:  int(getEnvInt64("FIREFIK_TEMPLATE_SYNC_INTERVAL", 60)),
 		TemplateCacheDir:       SafePath(getEnv("FIREFIK_TEMPLATE_CACHE_DIR", "/var/lib/firefik/templates")),
 	}

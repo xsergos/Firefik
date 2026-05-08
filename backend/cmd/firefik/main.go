@@ -437,6 +437,28 @@ func run(logger *slog.Logger) error {
 				return nil
 			})
 		}
+
+		if cfg.ControlPlaneClientCert != "" && cfg.ControlPlaneClientKey != "" && cfg.ControlPlaneHTTP != "" {
+			renewer := &controlplane.CertRenewer{
+				AgentID:     identity.InstanceID,
+				CertPath:    cfg.ControlPlaneClientCert,
+				KeyPath:     cfg.ControlPlaneClientKey,
+				CAPath:      cfg.ControlPlaneCACert,
+				Endpoint:    cfg.ControlPlaneHTTP,
+				Insecure:    cfg.ControlPlaneInsecure,
+				RenewBefore: time.Duration(cfg.CertRenewBeforeS) * time.Second,
+				Interval:    time.Duration(cfg.CertRenewIntervalS) * time.Second,
+				TTLSeconds:  cfg.CertRenewTTLS,
+				Logger:      logger,
+			}
+			logger.Info("control-plane cert renewer enabled",
+				"renew_before", renewer.RenewBefore,
+				"interval", renewer.Interval,
+			)
+			g.Go(func() error {
+				return renewer.Run(gctx)
+			})
+		}
 	}
 
 	g.Go(func() error {

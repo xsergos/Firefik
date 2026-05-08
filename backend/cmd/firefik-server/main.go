@@ -129,11 +129,6 @@ func run() error {
 	}
 	registry := controlplane.NewRegistryWithStore(logger, store)
 
-	var enrollHandler controlplane.EnrollHandler
-	if ca != nil {
-		enrollHandler = makeEnrollHandler(ca, token, store, logger)
-	}
-
 	auditFanOut := buildServerAudit(logger)
 	defer func() {
 		for _, sink := range auditFanOut.Sinks {
@@ -141,8 +136,16 @@ func run() error {
 		}
 	}()
 
+	var enrollHandler controlplane.EnrollHandler
+	var renewHandler controlplane.EnrollHandler
+	if ca != nil {
+		enrollHandler = makeEnrollHandler(ca, token, store, logger)
+		renewHandler = makeRenewHandler(ca, *trustDomain, auditFanOut, logger)
+	}
+
 	srv := &controlplane.HTTPServer{
 		EnrollHandle: enrollHandler,
+		RenewHandle:  renewHandler,
 		Registry:     registry,
 		Token:        token,
 		Audit:        auditFanOut,
@@ -321,7 +324,7 @@ func buildTLS(cert, key, clientCA, trustDomain string) (*tls.Config, error) {
 			return nil, err
 		}
 		cfg.ClientCAs = pool
-		cfg.ClientAuth = tls.RequireAndVerifyClientCert
+		cfg.ClientAuth = tls.VerifyClientCertIfGiven
 	}
 	if trustDomain != "" {
 		base := mca.VerifySPIFFEPeer(trustDomain)

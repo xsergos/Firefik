@@ -161,11 +161,11 @@ func buildClientTLS(insecureSkipVerify bool, caPath, certPath, keyPath string) (
 		cfg.RootCAs = pool
 	}
 	if certPath != "" && keyPath != "" {
-		pair, err := tls.LoadX509KeyPair(certPath, keyPath)
-		if err != nil {
+		if _, err := tls.LoadX509KeyPair(certPath, keyPath); err != nil {
 			return nil, fmt.Errorf("client cert/key: %w", err)
 		}
-		cfg.Certificates = []tls.Certificate{pair}
+		loader := newKeyPairLoader(certPath, keyPath)
+		cfg.GetClientCertificate = loader.getClientCertificate
 	}
 	return cfg, nil
 }
