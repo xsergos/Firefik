@@ -149,6 +149,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build panel image
+        uses: docker/build-push-action@v7
+        with:
+          context: frontend
+          push: false
+          load: true
+          tags: firefik-panel:ci
+          build-args: |
+            VITE_PANEL_MODE=fleet
+            CADDY_CONFIG=Caddyfile.panel
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Trivy scan (backend)
         uses: aquasecurity/trivy-action@master
         with:
@@ -162,6 +175,15 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: firefik-front:ci
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: 0
+          trivyignores: .trivyignore
+
+      - name: Trivy scan (panel)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: firefik-panel:ci
           format: table
           severity: HIGH,CRITICAL
           exit-code: 0
