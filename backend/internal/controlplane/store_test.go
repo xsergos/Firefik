@@ -193,3 +193,75 @@ func TestSQLiteStoreHydratesRegistry(t *testing.T) {
 		t.Fatalf("unexpected: %+v", agents)
 	}
 }
+
+func TestSQLiteStoreCertRenewHistory(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+
+	if _, ok, err := store.LastCertRenew(ctx, "deadbeef"); err != nil || ok {
+		t.Fatalf("missing serial should return ok=false: ok=%v err=%v", ok, err)
+	}
+
+	t0 := time.Now().UTC().Truncate(time.Second)
+	if err := store.RecordCertRenew(ctx, "deadbeef", "agent-a", t0); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := store.LastCertRenew(ctx, "deadbeef")
+	if err != nil || !ok || !got.Equal(t0) {
+		t.Fatalf("got=%v ok=%v err=%v", got, ok, err)
+	}
+
+	got, ok, err = store.LastCertRenew(ctx, "DEADBEEF")
+	if err != nil || !ok || !got.Equal(t0) {
+		t.Fatalf("case-insensitive lookup failed")
+	}
+
+	t1 := t0.Add(time.Minute)
+	if err := store.RecordCertRenew(ctx, "deadbeef", "agent-a", t1); err != nil {
+		t.Fatal(err)
+	}
+	got, _, _ = store.LastCertRenew(ctx, "deadbeef")
+	if !got.Equal(t1) {
+		t.Fatalf("upsert did not update timestamp: got=%v want=%v", got, t1)
+	}
+
+	if err := store.RecordCertRenew(ctx, "", "x", t0); err == nil {
+		t.Fatal("empty serial should error")
+	}
+
+	if err := store.PruneCertRenewHistory(ctx, []string{"deadbeef", "missing"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := store.LastCertRenew(ctx, "deadbeef"); ok {
+		t.Fatal("entry not pruned")
+	}
+	if err := store.PruneCertRenewHistory(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMemStoreCertRenewHistory(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	t0 := time.Now().UTC().Truncate(time.Second)
+
+	if _, ok, _ := store.LastCertRenew(ctx, ""); ok {
+		t.Fatal("empty serial should miss")
+	}
+	if err := store.RecordCertRenew(ctx, "", "x", t0); err == nil {
+		t.Fatal("empty serial should error")
+	}
+	if err := store.RecordCertRenew(ctx, "AbCd", "agent", t0); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, _ := store.LastCertRenew(ctx, "abcd")
+	if !ok || !got.Equal(t0) {
+		t.Fatalf("got=%v ok=%v", got, ok)
+	}
+	if err := store.PruneCertRenewHistory(ctx, []string{"abcd"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := store.LastCertRenew(ctx, "abcd"); ok {
+		t.Fatal("not pruned")
+	}
+}

@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -128,17 +127,7 @@ func run() error {
 		}
 	}
 
-	resolvedCertPath := *certFile
-	resolvedKeyPath := *keyFile
-	autoServerCert := *certFile == "" && *keyFile == "" && ca != nil
-	if autoServerCert {
-		prefix := *serverCertKeypairPrefix
-		if prefix == "" {
-			prefix = filepath.Join(*caStateDir, "cp-server")
-		}
-		resolvedCertPath = prefix + ".crt"
-		resolvedKeyPath = prefix + ".key"
-	}
+	resolvedCertPath, resolvedKeyPath, autoServerCert := resolveServerCertPaths(*certFile, *keyFile, *caStateDir, *serverCertKeypairPrefix, ca != nil)
 
 	ctxBoot, bootCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer bootCancel()

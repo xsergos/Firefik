@@ -55,7 +55,7 @@ jobs:
 
       - name: go test + cover-gate
         env:
-          COVER_THRESHOLD: "76.0"
+          COVER_THRESHOLD: "85.0"
         run: make cover-gate
 
   integration:

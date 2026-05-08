@@ -237,6 +237,90 @@ func TestCertRenewer_RPCError(t *testing.T) {
 	}
 }
 
+func TestCertRenewer_Run_StopsOnContextCancel(t *testing.T) {
+	pki := makeTestPKI(t)
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "client.crt")
+	keyPath := filepath.Join(dir, "client.key")
+	certPEM, keyPEM := pki.issueClient(t, "agent", 10*24*time.Hour)
+	writeAll(t, map[string][]byte{certPath: certPEM, keyPath: keyPEM})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	r := &CertRenewer{
+		AgentID:     "agent",
+		CertPath:    certPath,
+		KeyPath:     keyPath,
+		Client:      &fakeRenewClient{},
+		RenewBefore: time.Hour,
+		Interval:    50 * time.Millisecond,
+		Logger:      slog.Default(),
+	}
+	done := make(chan struct{})
+	go func() {
+		_ = r.Run(ctx)
+		close(done)
+	}()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Run did not stop on ctx cancel")
+	}
+}
+
+func TestCertRenewer_Run_NoOpWithoutClient(t *testing.T) {
+	r := &CertRenewer{}
+	if err := r.Run(context.Background()); err != nil {
+		t.Fatalf("expected nil err for misconfigured renewer, got %v", err)
+	}
+}
+
+func TestCertRenewer_Tick_LoadCertError(t *testing.T) {
+	r := &CertRenewer{
+		AgentID:     "x",
+		CertPath:    filepath.Join(t.TempDir(), "missing.crt"),
+		KeyPath:     filepath.Join(t.TempDir(), "missing.key"),
+		Client:      &fakeRenewClient{},
+		RenewBefore: time.Hour,
+		Logger:      slog.Default(),
+	}
+	r.Tick(context.Background())
+}
+
+func TestCertRenewer_Logger_Default(t *testing.T) {
+	r := &CertRenewer{}
+	if r.logger() == nil {
+		t.Fatal("logger() must never return nil")
+	}
+}
+
+func TestParsePrivateKeyPEM(t *testing.T) {
+	if _, err := parsePrivateKeyPEM([]byte("not pem")); err == nil {
+		t.Fatal("expected error on non-PEM")
+	}
+	if _, err := parsePrivateKeyPEM([]byte("-----BEGIN UNKNOWN-----\nfoo\n-----END UNKNOWN-----\n")); err == nil {
+		t.Fatal("expected error on unsupported PEM type")
+	}
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, _ := x509.MarshalECPrivateKey(priv)
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})
+	if _, err := parsePrivateKeyPEM(pemBytes); err != nil {
+		t.Fatalf("EC PRIVATE KEY parse: %v", err)
+	}
+	pkcs8, _ := x509.MarshalPKCS8PrivateKey(priv)
+	pemBytes = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8})
+	if _, err := parsePrivateKeyPEM(pemBytes); err != nil {
+		t.Fatalf("PKCS8 parse: %v", err)
+	}
+	bad := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: []byte{0x00}})
+	if _, err := parsePrivateKeyPEM(bad); err == nil {
+		t.Fatal("expected error on garbage EC PRIVATE KEY")
+	}
+}
+
 func TestWriteFileAtomic_AtomicReplace(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "f")

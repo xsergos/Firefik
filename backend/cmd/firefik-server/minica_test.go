@@ -89,6 +89,54 @@ func TestMiniCAIssueMissingState(t *testing.T) {
 	}
 }
 
+func TestMiniCARevokeFlow(t *testing.T) {
+	stateDir := t.TempDir()
+	outDir := t.TempDir()
+	old := os.Stdout
+	_, w, _ := os.Pipe()
+	os.Stdout = w
+	defer func() {
+		w.Close()
+		os.Stdout = old
+	}()
+
+	if err := miniCAInit([]string{"--state-dir", stateDir, "--trust-domain", "spiffe://t"}); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if err := miniCAIssue([]string{"--state-dir", stateDir, "--agent-id", "agent1", "--out", outDir, "--trust-domain", "spiffe://t"}); err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+
+	if err := miniCARevoke([]string{"--state-dir", stateDir, "--trust-domain", "spiffe://t"}); err == nil {
+		t.Fatal("expected error when --serial missing")
+	}
+	if err := miniCARevoke([]string{"--state-dir", "/nonexistent", "--serial", "abc"}); err == nil {
+		t.Fatal("expected error on missing state dir")
+	}
+	if err := miniCARevoke([]string{"--state-dir", stateDir, "--serial", "abcd1234", "--reason", "stolen", "--trust-domain", "spiffe://t"}); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	if err := miniCAListRevoked([]string{"--state-dir", stateDir, "--trust-domain", "spiffe://t"}); err != nil {
+		t.Fatalf("list-revoked: %v", err)
+	}
+	if err := miniCAListRevoked([]string{"--state-dir", "/nonexistent"}); err == nil {
+		t.Fatal("expected error on missing state dir")
+	}
+}
+
+func TestRunMiniCA_Revoke_Dispatch(t *testing.T) {
+	stateDir := t.TempDir()
+	if err := miniCAInit([]string{"--state-dir", stateDir, "--trust-domain", "spiffe://t"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runMiniCA([]string{"revoke", "--state-dir", stateDir, "--serial", "ff", "--trust-domain", "spiffe://t"}); err != nil {
+		t.Fatalf("dispatch revoke: %v", err)
+	}
+	if err := runMiniCA([]string{"list-revoked", "--state-dir", stateDir, "--trust-domain", "spiffe://t"}); err != nil {
+		t.Fatalf("dispatch list-revoked: %v", err)
+	}
+}
+
 func TestMiniCAInitAndIssue(t *testing.T) {
 	stateDir := t.TempDir()
 	outDir := t.TempDir()

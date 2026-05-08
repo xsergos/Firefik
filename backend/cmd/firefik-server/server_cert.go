@@ -205,3 +205,17 @@ func defaultServerNames() []string {
 	}
 	return []string{strings.ToLower(h), "controlplane"}
 }
+
+func resolveServerCertPaths(certFlag, keyFlag, caStateDir, prefixOverride string, haveCA bool) (cert, key string, auto bool) {
+	if certFlag != "" || keyFlag != "" {
+		return certFlag, keyFlag, false
+	}
+	if !haveCA {
+		return "", "", false
+	}
+	prefix := prefixOverride
+	if prefix == "" {
+		prefix = filepath.Join(caStateDir, "cp-server")
+	}
+	return prefix + ".crt", prefix + ".key", true
+}

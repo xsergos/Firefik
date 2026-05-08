@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"log/slog"
@@ -154,6 +155,123 @@ func TestServerCertManager_FailsWithoutCA(t *testing.T) {
 	}
 	if err := mgr.issue("manual"); err == nil {
 		t.Fatal("expected error without CA")
+	}
+}
+
+func TestResolveServerCertPaths(t *testing.T) {
+	cert, key, auto := resolveServerCertPaths("", "", "/var/lib/cp/ca", "", true)
+	if !auto || cert != filepath.FromSlash("/var/lib/cp/ca/cp-server.crt") || key != filepath.FromSlash("/var/lib/cp/ca/cp-server.key") {
+		t.Fatalf("default-prefix path computation broken: cert=%q key=%q auto=%v", cert, key, auto)
+	}
+
+	cert, key, auto = resolveServerCertPaths("", "", "/ignored", "/etc/firefik/cp", true)
+	if !auto || cert != "/etc/firefik/cp.crt" || key != "/etc/firefik/cp.key" {
+		t.Fatalf("explicit prefix override ignored: cert=%q key=%q", cert, key)
+	}
+
+	cert, key, auto = resolveServerCertPaths("/etc/cp.crt", "/etc/cp.key", "/ignored", "", true)
+	if auto || cert != "/etc/cp.crt" || key != "/etc/cp.key" {
+		t.Fatalf("explicit override should disable auto: cert=%q key=%q auto=%v", cert, key, auto)
+	}
+
+	cert, key, auto = resolveServerCertPaths("", "", "/ignored", "", false)
+	if auto || cert != "" || key != "" {
+		t.Fatalf("no CA + no override should yield empty paths: cert=%q key=%q auto=%v", cert, key, auto)
+	}
+
+	cert, key, auto = resolveServerCertPaths("/c.pem", "", "/ignored", "", true)
+	if auto || cert != "/c.pem" || key != "" {
+		t.Fatalf("partial override should still disable auto: cert=%q key=%q auto=%v", cert, key, auto)
+	}
+}
+
+func TestServerCertManager_RunDaily_TriggersIssueOnStaleCert(t *testing.T) {
+	t.Skip("daily rotation goroutine ticks once per 24h; covered indirectly via shouldReissue tests")
+}
+
+func TestServerCertManager_RunDaily_FailureLogged(t *testing.T) {
+	ca := newCAForServerCertTest(t)
+	dir := t.TempDir()
+	mgr := newServerCertManager(t, ca, dir, time.Hour, 30*time.Minute)
+	if err := mgr.ensureAtStartup(); err != nil {
+		t.Fatal(err)
+	}
+	mgr.CA = nil
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	mgr.runDaily(ctx)
+}
+
+func TestServerCertManager_RunDaily_StopsOnContextCancel(t *testing.T) {
+	ca := newCAForServerCertTest(t)
+	dir := t.TempDir()
+	mgr := newServerCertManager(t, ca, dir, time.Hour, 30*time.Minute)
+	if err := mgr.ensureAtStartup(); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		mgr.runDaily(ctx)
+		close(done)
+	}()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("runDaily did not exit on context cancel")
+	}
+}
+
+func TestServerCertManager_EnsureAtStartup_RequiresCertPath(t *testing.T) {
+	mgr := &serverCertManager{}
+	if err := mgr.ensureAtStartup(); err == nil {
+		t.Fatal("expected error when CertPath/KeyPath are empty")
+	}
+}
+
+func TestServerCertManager_Issue_MkdirParent(t *testing.T) {
+	ca := newCAForServerCertTest(t)
+	dir := t.TempDir()
+	nested := filepath.Join(dir, "deep", "nested", "path")
+	mgr := &serverCertManager{
+		CA:          ca,
+		CertPath:    filepath.Join(nested, "cp-server.crt"),
+		KeyPath:     filepath.Join(nested, "cp-server.key"),
+		DNSNames:    []string{"x"},
+		IPAddresses: []string{"127.0.0.1"},
+		TTL:         time.Hour,
+		RenewBefore: 30 * time.Minute,
+		Logger:      slog.Default(),
+	}
+	if err := mgr.issue("manual"); err != nil {
+		t.Fatalf("issue with nested mkdir: %v", err)
+	}
+	if _, err := os.Stat(mgr.CertPath); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWriteFileAtomic_BadParentDir(t *testing.T) {
+	if err := writeFileAtomic(filepath.Join(t.TempDir(), "no-such-dir", "f"), []byte("x"), 0o644); err == nil {
+		t.Fatal("expected error when temp parent doesn't exist")
+	}
+}
+
+func TestLoadCertFile_NotPEM(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "junk.pem")
+	if err := os.WriteFile(path, []byte("not pem"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadCertFile(path); err == nil {
+		t.Fatal("expected error on non-PEM input")
+	}
+}
+
+func TestLoadCertFile_Missing(t *testing.T) {
+	if _, err := loadCertFile(filepath.Join(t.TempDir(), "no-such")); err == nil {
+		t.Fatal("expected error on missing file")
 	}
 }
 

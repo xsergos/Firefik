@@ -84,6 +84,27 @@ func TestKeyPairLoader_CacheSticks(t *testing.T) {
 	}
 }
 
+func TestKeypairLoader_GetServerCertificate(t *testing.T) {
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "s.crt")
+	keyPath := filepath.Join(dir, "s.key")
+	writeKeypair(t, certPath, keyPath, "server")
+	loader := NewKeypairLoader(certPath, keyPath)
+
+	got, err := loader.GetServerCertificate(nil)
+	if err != nil || got == nil {
+		t.Fatalf("err=%v cert=%v", err, got)
+	}
+}
+
+func TestKeypairLoader_LoadFailsAndNoCache(t *testing.T) {
+	dir := t.TempDir()
+	loader := NewKeypairLoader(filepath.Join(dir, "missing.crt"), filepath.Join(dir, "missing.key"))
+	if _, err := loader.GetServerCertificate(nil); err == nil {
+		t.Fatal("expected error when files don't exist and no cache")
+	}
+}
+
 func TestKeyPairLoader_FallsBackToCacheOnReadError(t *testing.T) {
 	dir := t.TempDir()
 	certPath := filepath.Join(dir, "client.crt")
