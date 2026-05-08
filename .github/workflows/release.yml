@@ -160,15 +160,6 @@ jobs:
           trivyignores: .trivyignore
           cache: "true"
 
-      - name: Smoke test arm64 image
-        if: matrix.component.name == 'backend'
-        run: |
-          docker pull --platform linux/arm64 ghcr.io/${{ github.repository_owner }}/firefik-${{ matrix.component.name }}:${{ steps.tag.outputs.value }}
-          docker run --rm --platform linux/arm64 \
-            --entrypoint firefik-admin \
-            ghcr.io/${{ github.repository_owner }}/firefik-${{ matrix.component.name }}:${{ steps.tag.outputs.value }} \
-            help
-
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
@@ -179,10 +170,41 @@ jobs:
           artifact-name: ${{ matrix.component.name }}-sbom
           upload-release-assets: false
 
+  smoke-arm64:
+    name: Smoke test arm64 backend image (native)
+    runs-on: ubuntu-24.04-arm
+    needs: manifest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run firefik-admin help
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/firefik-backend:${{ steps.tag.outputs.value }}
+        run: |
+          docker pull "$IMAGE"
+          docker run --rm --entrypoint firefik-admin "$IMAGE" help
+
   release-notes:
     name: GitHub Release
     runs-on: ubuntu-24.04
-    needs: manifest
+    needs: [manifest, smoke-arm64]
     permissions:
       contents: write
       actions: read
