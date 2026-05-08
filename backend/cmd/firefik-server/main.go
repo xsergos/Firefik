@@ -104,15 +104,9 @@ func run() error {
 		}()
 	}
 
-	token := ""
-	if *tokenFile != "" {
-		b, err := os.ReadFile(*tokenFile)
-		if err != nil {
-			return fmt.Errorf("read token-file: %w", err)
-		}
-		token = string(b)
-	} else if v := os.Getenv("FIREFIK_SERVER_TOKEN"); v != "" {
-		token = v
+	token, err := loadServerToken(*tokenFile)
+	if err != nil {
+		return err
 	}
 
 	var ca *mca.CA
@@ -513,4 +507,18 @@ func indexComma(s string) int {
 
 func splitHostPort(s string) (string, string, error) {
 	return net.SplitHostPort(s)
+}
+
+func loadServerToken(path string) (string, error) {
+	if path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("read token-file: %w", err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	if v := os.Getenv("FIREFIK_SERVER_TOKEN"); v != "" {
+		return strings.TrimSpace(v), nil
+	}
+	return "", nil
 }

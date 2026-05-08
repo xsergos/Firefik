@@ -503,3 +503,49 @@ func TestClientIP_RemoteAddr(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestLoadServerToken(t *testing.T) {
+	t.Run("trims trailing newline from --token-file", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "token")
+		if err := os.WriteFile(path, []byte("  ansible-rendered-token\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := loadServerToken(path)
+		if err != nil {
+			t.Fatalf("loadServerToken: %v", err)
+		}
+		if got != "ansible-rendered-token" {
+			t.Fatalf("got %q", got)
+		}
+	})
+
+	t.Run("propagates read error", func(t *testing.T) {
+		_, err := loadServerToken(filepath.Join(t.TempDir(), "missing"))
+		if err == nil {
+			t.Fatal("expected error for missing token-file")
+		}
+	})
+
+	t.Run("falls back to env and trims it", func(t *testing.T) {
+		t.Setenv("FIREFIK_SERVER_TOKEN", "  env-token\n")
+		got, err := loadServerToken("")
+		if err != nil {
+			t.Fatalf("loadServerToken: %v", err)
+		}
+		if got != "env-token" {
+			t.Fatalf("got %q", got)
+		}
+	})
+
+	t.Run("returns empty when neither flag nor env is set", func(t *testing.T) {
+		t.Setenv("FIREFIK_SERVER_TOKEN", "")
+		got, err := loadServerToken("")
+		if err != nil {
+			t.Fatalf("loadServerToken: %v", err)
+		}
+		if got != "" {
+			t.Fatalf("got %q", got)
+		}
+	})
+}
