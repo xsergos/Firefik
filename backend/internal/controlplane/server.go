@@ -207,7 +207,6 @@ type AuditEmitter interface {
 
 type HTTPServer struct {
 	EnrollHandle EnrollHandler
-	RenewHandle  EnrollHandler
 	Registry     *Registry
 	Token        string
 	Audit        AuditEmitter
@@ -220,9 +219,6 @@ func (s *HTTPServer) Handler() http.Handler {
 	})
 	if s.EnrollHandle != nil {
 		mux.HandleFunc("/v1/enroll", s.EnrollHandle)
-	}
-	if s.RenewHandle != nil {
-		mux.HandleFunc("/v1/renew", s.RenewHandle)
 	}
 	if s.Registry != nil && s.Registry.store != nil {
 		mux.HandleFunc("/v1/templates", s.requireBearer(s.handleTemplates))

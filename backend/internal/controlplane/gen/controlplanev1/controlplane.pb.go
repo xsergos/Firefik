@@ -1212,6 +1212,142 @@ func (x *PublishTemplateResponse) GetTemplate() *PolicyTemplate {
 	return nil
 }
 
+type RenewCertRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	TtlSeconds    int64                  `protobuf:"varint,2,opt,name=ttl_seconds,json=ttlSeconds,proto3" json:"ttl_seconds,omitempty"`
+	CsrPem        []byte                 `protobuf:"bytes,3,opt,name=csr_pem,json=csrPem,proto3" json:"csr_pem,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenewCertRequest) Reset() {
+	*x = RenewCertRequest{}
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenewCertRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenewCertRequest) ProtoMessage() {}
+
+func (x *RenewCertRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenewCertRequest.ProtoReflect.Descriptor instead.
+func (*RenewCertRequest) Descriptor() ([]byte, []int) {
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *RenewCertRequest) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *RenewCertRequest) GetTtlSeconds() int64 {
+	if x != nil {
+		return x.TtlSeconds
+	}
+	return 0
+}
+
+func (x *RenewCertRequest) GetCsrPem() []byte {
+	if x != nil {
+		return x.CsrPem
+	}
+	return nil
+}
+
+type RenewCertResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CertPem       []byte                 `protobuf:"bytes,1,opt,name=cert_pem,json=certPem,proto3" json:"cert_pem,omitempty"`
+	KeyPem        []byte                 `protobuf:"bytes,2,opt,name=key_pem,json=keyPem,proto3" json:"key_pem,omitempty"`
+	BundlePem     []byte                 `protobuf:"bytes,3,opt,name=bundle_pem,json=bundlePem,proto3" json:"bundle_pem,omitempty"`
+	Serial        string                 `protobuf:"bytes,4,opt,name=serial,proto3" json:"serial,omitempty"`
+	ExpiresUnix   int64                  `protobuf:"varint,5,opt,name=expires_unix,json=expiresUnix,proto3" json:"expires_unix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenewCertResponse) Reset() {
+	*x = RenewCertResponse{}
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenewCertResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenewCertResponse) ProtoMessage() {}
+
+func (x *RenewCertResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenewCertResponse.ProtoReflect.Descriptor instead.
+func (*RenewCertResponse) Descriptor() ([]byte, []int) {
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *RenewCertResponse) GetCertPem() []byte {
+	if x != nil {
+		return x.CertPem
+	}
+	return nil
+}
+
+func (x *RenewCertResponse) GetKeyPem() []byte {
+	if x != nil {
+		return x.KeyPem
+	}
+	return nil
+}
+
+func (x *RenewCertResponse) GetBundlePem() []byte {
+	if x != nil {
+		return x.BundlePem
+	}
+	return nil
+}
+
+func (x *RenewCertResponse) GetSerial() string {
+	if x != nil {
+		return x.Serial
+	}
+	return ""
+}
+
+func (x *RenewCertResponse) GetExpiresUnix() int64 {
+	if x != nil {
+		return x.ExpiresUnix
+	}
+	return 0
+}
+
 var File_controlplane_v1_controlplane_proto protoreflect.FileDescriptor
 
 const file_controlplane_v1_controlplane_proto_rawDesc = "" +
@@ -1312,20 +1448,33 @@ const file_controlplane_v1_controlplane_proto_rawDesc = "" +
 	"\x16PublishTemplateRequest\x12C\n" +
 	"\btemplate\x18\x01 \x01(\v2'.firefik.controlplane.v1.PolicyTemplateR\btemplate\"^\n" +
 	"\x17PublishTemplateResponse\x12C\n" +
-	"\btemplate\x18\x01 \x01(\v2'.firefik.controlplane.v1.PolicyTemplateR\btemplate*\x98\x01\n" +
+	"\btemplate\x18\x01 \x01(\v2'.firefik.controlplane.v1.PolicyTemplateR\btemplate\"g\n" +
+	"\x10RenewCertRequest\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x1f\n" +
+	"\vttl_seconds\x18\x02 \x01(\x03R\n" +
+	"ttlSeconds\x12\x17\n" +
+	"\acsr_pem\x18\x03 \x01(\fR\x06csrPem\"\xa1\x01\n" +
+	"\x11RenewCertResponse\x12\x19\n" +
+	"\bcert_pem\x18\x01 \x01(\fR\acertPem\x12\x17\n" +
+	"\akey_pem\x18\x02 \x01(\fR\x06keyPem\x12\x1d\n" +
+	"\n" +
+	"bundle_pem\x18\x03 \x01(\fR\tbundlePem\x12\x16\n" +
+	"\x06serial\x18\x04 \x01(\tR\x06serial\x12!\n" +
+	"\fexpires_unix\x18\x05 \x01(\x03R\vexpiresUnix*\x98\x01\n" +
 	"\vCommandKind\x12\x1c\n" +
 	"\x18COMMAND_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12COMMAND_KIND_APPLY\x10\x01\x12\x18\n" +
 	"\x14COMMAND_KIND_DISABLE\x10\x02\x12\x1a\n" +
 	"\x16COMMAND_KIND_RECONCILE\x10\x03\x12\x1d\n" +
-	"\x19COMMAND_KIND_TOKEN_ROTATE\x10\x042\xdf\x04\n" +
+	"\x19COMMAND_KIND_TOKEN_ROTATE\x10\x042\xc3\x05\n" +
 	"\fControlPlane\x12Z\n" +
 	"\bRegister\x12(.firefik.controlplane.v1.RegisterRequest\x1a$.firefik.controlplane.v1.RegisterAck\x12Y\n" +
 	"\x06Stream\x12#.firefik.controlplane.v1.AgentEvent\x1a&.firefik.controlplane.v1.ServerCommand(\x010\x01\x12M\n" +
 	"\x03Ack\x12#.firefik.controlplane.v1.CommandAck\x1a!.firefik.controlplane.v1.AckReply\x12n\n" +
 	"\rListTemplates\x12-.firefik.controlplane.v1.ListTemplatesRequest\x1a..firefik.controlplane.v1.ListTemplatesResponse\x12c\n" +
 	"\vGetTemplate\x12+.firefik.controlplane.v1.GetTemplateRequest\x1a'.firefik.controlplane.v1.PolicyTemplate\x12t\n" +
-	"\x0fPublishTemplate\x12/.firefik.controlplane.v1.PublishTemplateRequest\x1a0.firefik.controlplane.v1.PublishTemplateResponseBAZ?firefik/internal/controlplane/gen/controlplanev1;controlplanev1b\x06proto3"
+	"\x0fPublishTemplate\x12/.firefik.controlplane.v1.PublishTemplateRequest\x1a0.firefik.controlplane.v1.PublishTemplateResponse\x12b\n" +
+	"\tRenewCert\x12).firefik.controlplane.v1.RenewCertRequest\x1a*.firefik.controlplane.v1.RenewCertResponseBAZ?firefik/internal/controlplane/gen/controlplanev1;controlplanev1b\x06proto3"
 
 var (
 	file_controlplane_v1_controlplane_proto_rawDescOnce sync.Once
@@ -1340,7 +1489,7 @@ func file_controlplane_v1_controlplane_proto_rawDescGZIP() []byte {
 }
 
 var file_controlplane_v1_controlplane_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_controlplane_v1_controlplane_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_controlplane_v1_controlplane_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_controlplane_v1_controlplane_proto_goTypes = []any{
 	(CommandKind)(0),                // 0: firefik.controlplane.v1.CommandKind
 	(*AgentIdentity)(nil),           // 1: firefik.controlplane.v1.AgentIdentity
@@ -1361,39 +1510,41 @@ var file_controlplane_v1_controlplane_proto_goTypes = []any{
 	(*GetTemplateRequest)(nil),      // 16: firefik.controlplane.v1.GetTemplateRequest
 	(*PublishTemplateRequest)(nil),  // 17: firefik.controlplane.v1.PublishTemplateRequest
 	(*PublishTemplateResponse)(nil), // 18: firefik.controlplane.v1.PublishTemplateResponse
-	nil,                             // 19: firefik.controlplane.v1.AgentIdentity.LabelsEntry
-	nil,                             // 20: firefik.controlplane.v1.ContainerState.LabelsEntry
-	nil,                             // 21: firefik.controlplane.v1.LogLine.FieldsEntry
-	nil,                             // 22: firefik.controlplane.v1.PolicyTemplate.LabelsEntry
-	(*timestamppb.Timestamp)(nil),   // 23: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),         // 24: google.protobuf.Struct
+	(*RenewCertRequest)(nil),        // 19: firefik.controlplane.v1.RenewCertRequest
+	(*RenewCertResponse)(nil),       // 20: firefik.controlplane.v1.RenewCertResponse
+	nil,                             // 21: firefik.controlplane.v1.AgentIdentity.LabelsEntry
+	nil,                             // 22: firefik.controlplane.v1.ContainerState.LabelsEntry
+	nil,                             // 23: firefik.controlplane.v1.LogLine.FieldsEntry
+	nil,                             // 24: firefik.controlplane.v1.PolicyTemplate.LabelsEntry
+	(*timestamppb.Timestamp)(nil),   // 25: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),         // 26: google.protobuf.Struct
 }
 var file_controlplane_v1_controlplane_proto_depIdxs = []int32{
-	19, // 0: firefik.controlplane.v1.AgentIdentity.labels:type_name -> firefik.controlplane.v1.AgentIdentity.LabelsEntry
+	21, // 0: firefik.controlplane.v1.AgentIdentity.labels:type_name -> firefik.controlplane.v1.AgentIdentity.LabelsEntry
 	1,  // 1: firefik.controlplane.v1.RegisterRequest.identity:type_name -> firefik.controlplane.v1.AgentIdentity
-	23, // 2: firefik.controlplane.v1.RegisterAck.server_time:type_name -> google.protobuf.Timestamp
-	20, // 3: firefik.controlplane.v1.ContainerState.labels:type_name -> firefik.controlplane.v1.ContainerState.LabelsEntry
+	25, // 2: firefik.controlplane.v1.RegisterAck.server_time:type_name -> google.protobuf.Timestamp
+	22, // 3: firefik.controlplane.v1.ContainerState.labels:type_name -> firefik.controlplane.v1.ContainerState.LabelsEntry
 	1,  // 4: firefik.controlplane.v1.AgentSnapshot.agent:type_name -> firefik.controlplane.v1.AgentIdentity
 	4,  // 5: firefik.controlplane.v1.AgentSnapshot.containers:type_name -> firefik.controlplane.v1.ContainerState
-	23, // 6: firefik.controlplane.v1.AgentSnapshot.at:type_name -> google.protobuf.Timestamp
+	25, // 6: firefik.controlplane.v1.AgentSnapshot.at:type_name -> google.protobuf.Timestamp
 	1,  // 7: firefik.controlplane.v1.Heartbeat.agent:type_name -> firefik.controlplane.v1.AgentIdentity
-	23, // 8: firefik.controlplane.v1.Heartbeat.at:type_name -> google.protobuf.Timestamp
+	25, // 8: firefik.controlplane.v1.Heartbeat.at:type_name -> google.protobuf.Timestamp
 	1,  // 9: firefik.controlplane.v1.AuditEvent.agent:type_name -> firefik.controlplane.v1.AgentIdentity
-	24, // 10: firefik.controlplane.v1.AuditEvent.event:type_name -> google.protobuf.Struct
+	26, // 10: firefik.controlplane.v1.AuditEvent.event:type_name -> google.protobuf.Struct
 	1,  // 11: firefik.controlplane.v1.LogLine.agent:type_name -> firefik.controlplane.v1.AgentIdentity
-	23, // 12: firefik.controlplane.v1.LogLine.at:type_name -> google.protobuf.Timestamp
-	21, // 13: firefik.controlplane.v1.LogLine.fields:type_name -> firefik.controlplane.v1.LogLine.FieldsEntry
+	25, // 12: firefik.controlplane.v1.LogLine.at:type_name -> google.protobuf.Timestamp
+	23, // 13: firefik.controlplane.v1.LogLine.fields:type_name -> firefik.controlplane.v1.LogLine.FieldsEntry
 	5,  // 14: firefik.controlplane.v1.AgentEvent.snapshot:type_name -> firefik.controlplane.v1.AgentSnapshot
 	7,  // 15: firefik.controlplane.v1.AgentEvent.audit:type_name -> firefik.controlplane.v1.AuditEvent
 	6,  // 16: firefik.controlplane.v1.AgentEvent.heartbeat:type_name -> firefik.controlplane.v1.Heartbeat
 	8,  // 17: firefik.controlplane.v1.AgentEvent.log:type_name -> firefik.controlplane.v1.LogLine
 	0,  // 18: firefik.controlplane.v1.ServerCommand.kind:type_name -> firefik.controlplane.v1.CommandKind
-	24, // 19: firefik.controlplane.v1.ServerCommand.payload:type_name -> google.protobuf.Struct
-	23, // 20: firefik.controlplane.v1.ServerCommand.issued_at:type_name -> google.protobuf.Timestamp
-	23, // 21: firefik.controlplane.v1.CommandAck.completed_at:type_name -> google.protobuf.Timestamp
-	22, // 22: firefik.controlplane.v1.PolicyTemplate.labels:type_name -> firefik.controlplane.v1.PolicyTemplate.LabelsEntry
-	23, // 23: firefik.controlplane.v1.PolicyTemplate.created_at:type_name -> google.protobuf.Timestamp
-	23, // 24: firefik.controlplane.v1.PolicyTemplate.updated_at:type_name -> google.protobuf.Timestamp
+	26, // 19: firefik.controlplane.v1.ServerCommand.payload:type_name -> google.protobuf.Struct
+	25, // 20: firefik.controlplane.v1.ServerCommand.issued_at:type_name -> google.protobuf.Timestamp
+	25, // 21: firefik.controlplane.v1.CommandAck.completed_at:type_name -> google.protobuf.Timestamp
+	24, // 22: firefik.controlplane.v1.PolicyTemplate.labels:type_name -> firefik.controlplane.v1.PolicyTemplate.LabelsEntry
+	25, // 23: firefik.controlplane.v1.PolicyTemplate.created_at:type_name -> google.protobuf.Timestamp
+	25, // 24: firefik.controlplane.v1.PolicyTemplate.updated_at:type_name -> google.protobuf.Timestamp
 	13, // 25: firefik.controlplane.v1.ListTemplatesResponse.templates:type_name -> firefik.controlplane.v1.PolicyTemplate
 	13, // 26: firefik.controlplane.v1.PublishTemplateRequest.template:type_name -> firefik.controlplane.v1.PolicyTemplate
 	13, // 27: firefik.controlplane.v1.PublishTemplateResponse.template:type_name -> firefik.controlplane.v1.PolicyTemplate
@@ -1403,14 +1554,16 @@ var file_controlplane_v1_controlplane_proto_depIdxs = []int32{
 	14, // 31: firefik.controlplane.v1.ControlPlane.ListTemplates:input_type -> firefik.controlplane.v1.ListTemplatesRequest
 	16, // 32: firefik.controlplane.v1.ControlPlane.GetTemplate:input_type -> firefik.controlplane.v1.GetTemplateRequest
 	17, // 33: firefik.controlplane.v1.ControlPlane.PublishTemplate:input_type -> firefik.controlplane.v1.PublishTemplateRequest
-	3,  // 34: firefik.controlplane.v1.ControlPlane.Register:output_type -> firefik.controlplane.v1.RegisterAck
-	10, // 35: firefik.controlplane.v1.ControlPlane.Stream:output_type -> firefik.controlplane.v1.ServerCommand
-	12, // 36: firefik.controlplane.v1.ControlPlane.Ack:output_type -> firefik.controlplane.v1.AckReply
-	15, // 37: firefik.controlplane.v1.ControlPlane.ListTemplates:output_type -> firefik.controlplane.v1.ListTemplatesResponse
-	13, // 38: firefik.controlplane.v1.ControlPlane.GetTemplate:output_type -> firefik.controlplane.v1.PolicyTemplate
-	18, // 39: firefik.controlplane.v1.ControlPlane.PublishTemplate:output_type -> firefik.controlplane.v1.PublishTemplateResponse
-	34, // [34:40] is the sub-list for method output_type
-	28, // [28:34] is the sub-list for method input_type
+	19, // 34: firefik.controlplane.v1.ControlPlane.RenewCert:input_type -> firefik.controlplane.v1.RenewCertRequest
+	3,  // 35: firefik.controlplane.v1.ControlPlane.Register:output_type -> firefik.controlplane.v1.RegisterAck
+	10, // 36: firefik.controlplane.v1.ControlPlane.Stream:output_type -> firefik.controlplane.v1.ServerCommand
+	12, // 37: firefik.controlplane.v1.ControlPlane.Ack:output_type -> firefik.controlplane.v1.AckReply
+	15, // 38: firefik.controlplane.v1.ControlPlane.ListTemplates:output_type -> firefik.controlplane.v1.ListTemplatesResponse
+	13, // 39: firefik.controlplane.v1.ControlPlane.GetTemplate:output_type -> firefik.controlplane.v1.PolicyTemplate
+	18, // 40: firefik.controlplane.v1.ControlPlane.PublishTemplate:output_type -> firefik.controlplane.v1.PublishTemplateResponse
+	20, // 41: firefik.controlplane.v1.ControlPlane.RenewCert:output_type -> firefik.controlplane.v1.RenewCertResponse
+	35, // [35:42] is the sub-list for method output_type
+	28, // [28:35] is the sub-list for method input_type
 	28, // [28:28] is the sub-list for extension type_name
 	28, // [28:28] is the sub-list for extension extendee
 	0,  // [0:28] is the sub-list for field type_name
@@ -1433,7 +1586,7 @@ func file_controlplane_v1_controlplane_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_controlplane_v1_controlplane_proto_rawDesc), len(file_controlplane_v1_controlplane_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   22,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

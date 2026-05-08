@@ -297,6 +297,58 @@ instead of blue. Procedure is symmetric.
 
 ---
 
+## 5. Cert lifecycle runbooks
+
+### 5.1 Server cert manual rotation
+
+Hot-reload-friendly — does not interrupt the running process.
+
+```bash
+sudo firefik-server cert rotate --ca-state-dir /var/lib/firefik-server/ca
+# add --force to rotate even if cert is healthy
+```
+
+`tls.Config.GetCertificate` re-reads the file on the next handshake;
+existing connections stay up.
+
+### 5.2 Mini-CA root rotation
+
+```bash
+# 1. Re-init mini-CA into a new dir (rotates root + issuing keys).
+sudo firefik-server mini-ca init --state-dir /var/lib/firefik-server/ca-new \
+    --trust-domain spiffe://firefik.local/
+
+# 2. Swap dirs and restart firefik-server (pick up new issuer).
+sudo systemctl stop firefik-server
+sudo mv /var/lib/firefik-server/ca /var/lib/firefik-server/ca-old
+sudo mv /var/lib/firefik-server/ca-new /var/lib/firefik-server/ca
+sudo systemctl start firefik-server
+
+# 3. Daily-check goroutine will detect the issuer change and re-issue
+#    the server cert (reason="issuer_rotated"). Force it immediately:
+sudo firefik-server cert rotate --force
+
+# 4. Each agent's next renew tick (default every 30m) will pick up the
+#    new ca-bundle.pem via RenewCert response — no manual push needed.
+#    Watch firefik_agent_bundle_rotated_total ticking across the fleet.
+```
+
+If the old root must be untrusted immediately, revoke every issued
+agent serial and remove `ca-old`. Otherwise leave `ca-old` available
+for two weeks for the rare agent that missed the rollover window.
+
+### 5.3 "Agent can't renew" diagnostic
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| RenewCert error `PermissionDenied: revoked` | serial in `<state-dir>/revoked.json` | Re-enroll agent: `firefik-admin enroll` (operator path) |
+| RenewCert error `ResourceExhausted` | hit `--min-renew-interval` rate-limit | Wait or raise the limit |
+| RenewCert error `FailedPrecondition: certificate valid for ...` | agent ticking too eagerly outside the window | Check agent `FIREFIK_CONTROL_PLANE_CERT_RENEW_BEFORE` |
+| TLS handshake error reaching `:8444` | server cert SAN mismatch / expired | `firefik-server cert rotate --force` |
+| Renew goroutine never logs anything | `FIREFIK_CONTROL_PLANE_GRPC` empty | Set the gRPC endpoint |
+
+---
+
 ## Appendix — Common commands
 
 | Task | Command |

@@ -106,62 +106,99 @@ Token semantics:
   token can no longer be exchanged); no public HTTP endpoint yet — let the
   TTL expire or delete the row out-of-band.
 
-## Self-renewal flow (mTLS-only)
+## Self-renewal flow (gRPC, mTLS-only)
 
-Agent-driven cert rotation that does **not** require an operator bearer
-token — the agent presents its current cert via mTLS, generates a CSR
-with its existing private key, and the server signs a fresh cert.
+Agent-driven cert rotation runs entirely over the existing mTLS gRPC
+channel on `:8444`. No HTTP endpoint, no operator bearer involved.
 
 ```
-agent (CertRenewer)                     firefik-server
-─────────────────────                   ──────────────
+agent (CertRenewer)                     firefik-server (gRPC)
+─────────────────────                   ─────────────────────
   loop every CERT_RENEW_INTERVAL
     if remaining < CERT_RENEW_BEFORE
       load existing private key
       build CSR  (CN = agent_id, key = existing)
-      POST /v1/renew  ── mTLS handshake ──▶
-        body = { agent_id, ttl_seconds, csr_pem }
-                                              verify peer.SPIFFE → trust_domain
+      ControlPlane.RenewCert(...)  ── mTLS handshake ──▶
+        { agent_id, ttl_seconds, csr_pem }
+                                              tls.RequireAndVerifyClientCert + SPIFFE check
                                               extract agent_id from peer SAN
-                                              reject if revoked.json contains serial
-                                              reject if remaining > 24h (renewal window)
-                                              parse CSR; require pubkey == peer pubkey
+                                              reject if revoked.json contains peer serial
+                                              reject if remaining > renew-window (default 24h)
+                                              reject if peer serial saw a renew within
+                                                 min-renew-interval (default 5m)
+                                              parse CSR; require csr.pubkey == peer.pubkey
                                               ca.IssueFromCSR(csr, agent_id, ttl)
+                                              record (peer_serial -> now) for rate-limit
                                               audit "cert_renewed"
-      ◀── 200 { cert_pem, bundle_pem, serial, not_after_unix }
-      atomic write CertPath (key untouched)
-      gRPC client picks up rotated cert at next handshake
-      via tls.Config.GetClientCertificate (mtime-cached loader)
+      ◀── { cert_pem, bundle_pem, serial, expires_unix }
+      atomic write cert (key untouched);
+      atomic write ca-bundle.pem if it changed (mini-CA root rotation
+        propagates here — agents pick up the new trust bundle without
+        any operator action)
+      gRPC client picks up rotated cert at next handshake via
+        tls.Config.GetClientCertificate (mtime-cached loader)
 ```
 
 Key properties:
 
+- **Single machine surface.** `:8444` (mTLS gRPC) is the only auth path
+  for machine APIs — `RenewCert`, `Stream`, `Register`, `Ack`,
+  templates. The public HTTP listener (`:8443`) is bootstrap-only
+  (`/v1/enroll`, `/healthz`) and runs `tls.NoClientCert`. Reverse-
+  proxies that terminate TLS on `:8443` no longer break renewal,
+  because renewal does not flow through them.
 - **No operator bearer involved.** Privilege-escalation surface (`enroll
   any agent_id`) eliminated — peer cert SAN is the binding identity.
+  `RenewCert` is bypassed by the gRPC bearer interceptor.
 - **Private key never rotates.** Agent reuses its enroll-time ECDSA-P256
-  key for every CSR. Less file movement, fewer chances for partial
-  rotations to wedge mTLS.
+  key for every CSR. Server signs the CSR and returns no key material.
 - **Revocation closes the loop.** `firefik-server mini-ca revoke
   --serial <hex>` writes to `<state-dir>/revoked.json`; subsequent
-  `/v1/renew` from that cert returns 403 + `cert_renew_rejected`
-  audit event. Operators can bind a stolen cert without touching CA keys.
+  `RenewCert` from that cert returns `PermissionDenied` + the
+  `cert_renew_rejected` audit event.
+- **Rate-limit per peer serial.** `--min-renew-interval` (default 5m)
+  prevents a buggy or runaway agent from hot-looping the issuing path.
+  The server records `{ peer_serial → last_renew_at }` in the SQLite
+  `cert_renew_history` table.
+- **Bundle rollover.** Every `RenewCert` response carries the current
+  trust bundle. The agent atomically replaces its `ca-bundle.pem` only
+  when content changes (`firefik_agent_bundle_rotated_total` ticks),
+  so a mini-CA root rotation propagates to the fleet automatically.
 - **Hot-reload, no agent restart.** gRPC client TLS config uses
   `GetClientCertificate` callback that re-reads the cert file when its
-  mtime changes; the active gRPC stream stays up, the next handshake
-  picks the new cert.
+  mtime changes.
 - **`firefik-admin enroll --renew`** remains as an operator-driven
-  break-glass path (e.g. when the agent's cert is past expiry and self-
+  break-glass path (when the agent's cert is past expiry and self-
   renewal can no longer authenticate).
 
-## Endpoints (HTTP, bootstrap-only and self-service)
+## Server certificate lifecycle
 
-In addition to the operator REST surface below, two unauthenticated-but-
-auth-different bootstrap routes:
+The control plane's own server certificate (the cert the agent talks to
+on `:8443`/`:8444`) is auto-issued by the embedded mini-CA, hot-reloaded
+from disk, and rotated daily without operator action.
 
-- `POST /v1/enroll` — bearer or one-time enrollment token; issues both
-  cert and key (server keygen).
-- `POST /v1/renew` — mTLS only; CSR-based, key stays on agent;
-  rejects revoked serials.
+| Stage | Trigger | Outcome |
+|---|---|---|
+| Auto-issue at startup | `--cert`/`--key` not set, files missing or invalid | mini-CA signs `<ca-state-dir>/cp-server.{crt,key}` with DNS SAN list (`--server-name`) and IP SAN `127.0.0.1` |
+| Hot-reload | mtime change on `cp-server.crt` or `.key` | next TLS handshake serves the new keypair (`tls.Config.GetCertificate` callback) |
+| Daily rotation | goroutine ticking every 24h | re-issue when `remaining < --server-cert-renew-before` (default 30 days), SAN list mismatch, or issuer cert rotation in mini-CA |
+| Manual rotation | `firefik-server cert rotate [--force]` | atomic rewrite + audit `server_cert_rotated{reason="manual"}` |
+
+`--cert`/`--key` remain available as an explicit operator override; when
+both are set, auto-issue and daily rotation are disabled and rotation is
+left to whatever process writes those files (the file-watcher still
+hot-reloads on mtime change). Backup includes the `cp-server.{crt,key}`
+in default layout because they live under `--ca-state-dir`.
+
+## Endpoints (HTTP, bootstrap-only)
+
+The HTTP listener serves only the bootstrap surface:
+
+- `GET /healthz` — liveness probe.
+- `POST /v1/enroll` — bearer or one-time enrollment token; issues cert
+  and private key for new agents that don't have a cert yet.
+
+Renewal is gRPC-only.
 
 ## gRPC service surface
 

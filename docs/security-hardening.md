@@ -101,13 +101,14 @@ to "good to have".
 
 ### 3.2 Agent cert renewal window
 
-- **Why.** Agents drive their own renewal via the `/v1/renew` mTLS
-  endpoint — no operator bearer is involved (which would have re-
-  introduced the privilege-escalation surface mTLS was meant to close).
-  The agent reuses its enroll-time private key (CSR-mode), so only the
-  cert rotates. `firefik-admin enroll --renew` remains as a break-glass
-  path for when the agent's cert is past expiry and self-renewal can
-  no longer authenticate.
+- **Why.** Agents drive their own renewal via the gRPC `RenewCert` RPC
+  (`:8444`, mTLS only) — there is no HTTP renewal surface. Operator
+  bearer is never involved, and the public HTTP listener (`:8443`)
+  runs `tls.NoClientCert`, so reverse-proxies in front of `:8443` no
+  longer break renewal. The agent reuses its enroll-time ECDSA private
+  key (CSR-mode), so only the cert rotates. `firefik-admin enroll
+  --renew` is the break-glass path when self-renewal can no longer
+  authenticate.
 - **Verify.**
   - `firefik_agent_cert_renewed_total` increments once per rotation;
     alert if `rate(firefik_agent_cert_renewed_total[7d]) == 0` for an
@@ -115,13 +116,22 @@ to "good to have".
     CERT_RENEW_BEFORE` (default 72h).
   - `firefik_agent_cert_renew_failed_total{reason}` and the server-side
     `firefik_controlplane_cert_renew_rejected_total{reason}` should
-    stay at zero outside maintenance.
+    stay at zero outside maintenance. `reason="rate_limited"` indicates
+    a buggy agent ratcheting on the renew loop.
+  - `firefik_agent_bundle_rotated_total` ticks whenever the mini-CA
+    root rotation propagates to the agent — alert on unexpected
+    increments outside a planned root rotation.
   - `firefik_controlplane_agent_cert_days_until_expiry` gauge stays
     ≥ 7 days on healthy agents.
+  - `firefik_controlplane_server_cert_renewed_total{reason}` should
+    tick once per `--server-cert-renew-before` window (default 30d
+    before expiry, ~once a year on default TTL); a sudden burst with
+    `reason="issuer_rotated"` confirms a mini-CA root rotation took.
 - **Remediate.** Tune `FIREFIK_CONTROL_PLANE_CERT_RENEW_INTERVAL`
   (default 30m) and `_BEFORE` (default 72h). Revoke a compromised cert
   with `firefik-server mini-ca revoke --serial <hex> --reason …` —
-  every subsequent `/v1/renew` from that cert returns `403 revoked`.
+  every subsequent `RenewCert` from that cert returns `PermissionDenied`.
+  Manual server-cert rotation: `firefik-server cert rotate --force`.
 
 ### 3.3 TLS cert rotation (server)
 

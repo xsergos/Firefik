@@ -13,6 +13,44 @@ import (
 	"testing"
 )
 
+func TestBackup_IncludesServerKeypairFromCaStateDir(t *testing.T) {
+	dir := t.TempDir()
+	caDir := filepath.Join(dir, "ca")
+	if err := os.MkdirAll(caDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"root.crt", "root.key", "issuing.crt", "issuing.key", "cp-server.crt", "cp-server.key"} {
+		if err := os.WriteFile(filepath.Join(caDir, f), []byte("X"+f), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dbPath := filepath.Join(dir, "firefik.db")
+	if err := os.WriteFile(dbPath, []byte("dbcontents"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "backup.tar.gz")
+	if err := runBackup([]string{"--db", dbPath, "--ca-state-dir", caDir, "--out", out}); err != nil {
+		t.Fatalf("backup: %v", err)
+	}
+
+	restoreDir := t.TempDir()
+	dbDest := filepath.Join(restoreDir, "firefik.db")
+	caDest := filepath.Join(restoreDir, "ca")
+	if err := runRestore([]string{"--from", out, "--db", dbDest, "--ca-state-dir", caDest}); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	for _, f := range []string{"cp-server.crt", "cp-server.key"} {
+		got, err := os.ReadFile(filepath.Join(caDest, f))
+		if err != nil {
+			t.Fatalf("missing %s after restore: %v", f, err)
+		}
+		want := "X" + f
+		if string(got) != want {
+			t.Fatalf("%s mismatch: got %q want %q", f, got, want)
+		}
+	}
+}
+
 func writeFile(t *testing.T, path string, data []byte) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

@@ -149,6 +149,67 @@ func TestRevokeFlow(t *testing.T) {
 	}
 }
 
+func TestIssueServerCert(t *testing.T) {
+	dir := t.TempDir()
+	ca, err := Init(dir, "spiffe://test.corp/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := ca.IssueServerCert(ServerCertRequest{
+		DNSNames:    []string{"controlplane", "fw-01.example"},
+		IPAddresses: []string{"127.0.0.1"},
+		TTL:         time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("issue server cert: %v", err)
+	}
+	if len(res.CertPEM) == 0 || len(res.KeyPEM) == 0 || len(res.BundlePEM) == 0 {
+		t.Fatal("missing PEM material")
+	}
+	cert := mustParseCert(t, res.CertPEM)
+	if !contains(cert.DNSNames, "controlplane") || !contains(cert.DNSNames, "fw-01.example") {
+		t.Fatalf("missing DNS SAN: %v", cert.DNSNames)
+	}
+	if len(cert.IPAddresses) != 1 || cert.IPAddresses[0].String() != "127.0.0.1" {
+		t.Fatalf("missing IP SAN: %v", cert.IPAddresses)
+	}
+	if !hasExtKeyUsage(cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth) {
+		t.Fatalf("expected ServerAuth EKU, got %v", cert.ExtKeyUsage)
+	}
+	if hasExtKeyUsage(cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth) {
+		t.Fatalf("server cert must not carry ClientAuth EKU")
+	}
+}
+
+func TestIssueServerCert_NoSAN(t *testing.T) {
+	dir := t.TempDir()
+	ca, err := Init(dir, "spiffe://test.corp/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ca.IssueServerCert(ServerCertRequest{TTL: time.Hour}); err == nil {
+		t.Fatal("expected error when no SAN supplied")
+	}
+}
+
+func contains(s []string, want string) bool {
+	for _, v := range s {
+		if v == want {
+			return true
+		}
+	}
+	return false
+}
+
+func hasExtKeyUsage(list []x509.ExtKeyUsage, want x509.ExtKeyUsage) bool {
+	for _, v := range list {
+		if v == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestIssueFromCSR_BadCSR(t *testing.T) {
 	dir := t.TempDir()
 	ca, err := Init(dir, "spiffe://test.corp/")

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -339,6 +340,102 @@ func (c *CA) Issue(req IssueRequest) (*IssueResult, error) {
 		NotAfter:  cert.NotAfter,
 		SPIFFEURI: spiffeURI.String(),
 	}, nil
+}
+
+type ServerCertRequest struct {
+	DNSNames    []string
+	IPAddresses []string
+	URI         string
+	TTL         time.Duration
+}
+
+type ServerCertResult struct {
+	CertPEM   []byte
+	KeyPEM    []byte
+	BundlePEM []byte
+	SerialHex string
+	NotAfter  time.Time
+}
+
+func (c *CA) IssueServerCert(req ServerCertRequest) (*ServerCertResult, error) {
+	if len(req.DNSNames) == 0 && len(req.IPAddresses) == 0 {
+		return nil, errors.New("server cert needs at least one DNS or IP SAN")
+	}
+	if req.TTL == 0 {
+		req.TTL = 365 * 24 * time.Hour
+	}
+	if req.TTL > 5*365*24*time.Hour {
+		req.TTL = 5 * 365 * 24 * time.Hour
+	}
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("server key: %w", err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("marshal server key: %w", err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+	serial, err := randSerial()
+	if err != nil {
+		return nil, err
+	}
+
+	tmpl := &x509.Certificate{
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			Organization: []string{caOrganization},
+			CommonName:   "firefik control plane",
+		},
+		NotBefore:   time.Now().Add(-time.Hour).UTC(),
+		NotAfter:    time.Now().Add(req.TTL).UTC(),
+		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:    req.DNSNames,
+	}
+	for _, ip := range req.IPAddresses {
+		if parsed := net.ParseIP(ip); parsed != nil {
+			tmpl.IPAddresses = append(tmpl.IPAddresses, parsed)
+		}
+	}
+	if req.URI != "" {
+		uri, err := url.Parse(req.URI)
+		if err != nil {
+			return nil, fmt.Errorf("server SAN URI %q: %w", req.URI, err)
+		}
+		tmpl.URIs = []*url.URL{uri}
+	} else if c.TrustDomain != "" {
+		domain := strings.TrimPrefix(c.TrustDomain, "spiffe://")
+		domain = strings.TrimSuffix(domain, "/")
+		if domain != "" {
+			tmpl.URIs = []*url.URL{{Scheme: "spiffe", Host: domain, Path: "/controlplane"}}
+		}
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, c.issuingCert, &key.PublicKey, c.issuingKey)
+	if err != nil {
+		return nil, fmt.Errorf("sign server cert: %w", err)
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		return nil, fmt.Errorf("parse server cert: %w", err)
+	}
+	return &ServerCertResult{
+		CertPEM:   pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
+		KeyPEM:    keyPEM,
+		BundlePEM: c.TrustBundlePEM(),
+		SerialHex: cert.SerialNumber.Text(16),
+		NotAfter:  cert.NotAfter,
+	}, nil
+}
+
+func (c *CA) IssuingFingerprint() string {
+	if c.issuingCert == nil {
+		return ""
+	}
+	return strings.ToLower(c.issuingCert.SerialNumber.Text(16))
 }
 
 func (c *CA) IssueFromCSR(csrPEM []byte, agentID string, ttl time.Duration) (*IssueResult, error) {

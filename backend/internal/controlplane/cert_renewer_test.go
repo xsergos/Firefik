@@ -6,29 +6,43 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"log/slog"
 	"math/big"
-	"net"
-	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	pb "firefik/internal/controlplane/gen/controlplanev1"
+
+	"google.golang.org/grpc"
 )
 
+type fakeRenewClient struct {
+	calls atomic.Int32
+	last  *pb.RenewCertRequest
+	resp  *pb.RenewCertResponse
+	err   error
+}
+
+func (f *fakeRenewClient) RenewCert(_ context.Context, in *pb.RenewCertRequest, _ ...grpc.CallOption) (*pb.RenewCertResponse, error) {
+	f.calls.Add(1)
+	f.last = in
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.resp, nil
+}
+
 type testPKI struct {
-	caCert     *x509.Certificate
-	caKey      *rsa.PrivateKey
-	caPEM      []byte
-	serverCert tls.Certificate
+	caCert *x509.Certificate
+	caKey  *rsa.PrivateKey
 }
 
 func makeTestPKI(t *testing.T) *testPKI {
@@ -51,40 +65,12 @@ func makeTestPKI(t *testing.T) *testPKI {
 		t.Fatal(err)
 	}
 	caCert, _ := x509.ParseCertificate(caDER)
-	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
-
-	srvKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatal(err)
-	}
-	srvTmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(2),
-		Subject:      pkix.Name{CommonName: "127.0.0.1"},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(24 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
-		DNSNames:     []string{"localhost", "127.0.0.1"},
-	}
-	srvDER, err := x509.CreateCertificate(rand.Reader, srvTmpl, caCert, &srvKey.PublicKey, caKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &testPKI{
-		caCert: caCert,
-		caKey:  caKey,
-		caPEM:  caPEM,
-		serverCert: tls.Certificate{
-			Certificate: [][]byte{srvDER},
-			PrivateKey:  srvKey,
-		},
-	}
+	return &testPKI{caCert: caCert, caKey: caKey}
 }
 
-func (p *testPKI) issueClient(t *testing.T, agentID string, ttl time.Duration) ([]byte, []byte) {
+func (p *testPKI) issueClient(t *testing.T, agentID string, ttl time.Duration) (cert []byte, key []byte) {
 	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,12 +84,12 @@ func (p *testPKI) issueClient(t *testing.T, agentID string, ttl time.Duration) (
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		URIs:         []*url.URL{uri},
 	}
-	der, err := x509.CreateCertificate(rand.Reader, tmpl, p.caCert, &key.PublicKey, p.caKey)
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, p.caCert, &priv.PublicKey, p.caKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
-	keyDER, _ := x509.MarshalECPrivateKey(key)
+	keyDER, _ := x509.MarshalECPrivateKey(priv)
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 	return certPEM, keyPEM
 }
@@ -125,24 +111,18 @@ func TestCertRenewer_NotInWindow(t *testing.T) {
 	certPEM, keyPEM := pki.issueClient(t, "agent-a", 10*24*time.Hour)
 	writeAll(t, map[string][]byte{certPath: certPEM, keyPath: keyPEM})
 
-	var calls int32
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&calls, 1)
-	}))
-	srv.Start()
-	defer srv.Close()
-
+	mock := &fakeRenewClient{}
 	r := &CertRenewer{
 		AgentID:     "agent-a",
 		CertPath:    certPath,
 		KeyPath:     keyPath,
-		Endpoint:    srv.URL,
+		Client:      mock,
 		RenewBefore: 24 * time.Hour,
 		Logger:      slog.Default(),
 	}
 	r.tick(context.Background(), slog.Default())
-	if calls != 0 {
-		t.Fatalf("expected no HTTP calls, got %d", calls)
+	if mock.calls.Load() != 0 {
+		t.Fatalf("expected no RPC calls, got %d", mock.calls.Load())
 	}
 }
 
@@ -151,50 +131,27 @@ func TestCertRenewer_HappyPath(t *testing.T) {
 	dir := t.TempDir()
 	certPath := filepath.Join(dir, "client.crt")
 	keyPath := filepath.Join(dir, "client.key")
-	caPath := filepath.Join(dir, "ca.pem")
+	bundlePath := filepath.Join(dir, "bundle.pem")
 	certPEM, keyPEM := pki.issueClient(t, "agent-a", time.Hour)
-	writeAll(t, map[string][]byte{certPath: certPEM, keyPath: keyPEM, caPath: pki.caPEM})
+	writeAll(t, map[string][]byte{certPath: certPEM, keyPath: keyPEM})
 
-	newCert, newKey := pki.issueClient(t, "agent-a", 10*24*time.Hour)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/renew", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
-			http.Error(w, "no peer", http.StatusUnauthorized)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(RenewResponse{
-			CertPEM:      string(newCert),
-			KeyPEM:       string(newKey),
-			BundlePEM:    string(pki.caPEM),
-			Serial:       "deadbeef",
-			SPIFFEURI:    "spiffe://test.firefik/agent/agent-a",
-			NotAfterUnix: time.Now().Add(10 * 24 * time.Hour).Unix(),
-		})
-	})
-
-	clientCAPool := x509.NewCertPool()
-	clientCAPool.AddCert(pki.caCert)
-
-	srv := httptest.NewUnstartedServer(mux)
-	srv.TLS = &tls.Config{
-		Certificates: []tls.Certificate{pki.serverCert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    clientCAPool,
-		MinVersion:   tls.VersionTLS12,
+	newCert, _ := pki.issueClient(t, "agent-a", 10*24*time.Hour)
+	mock := &fakeRenewClient{
+		resp: &pb.RenewCertResponse{
+			CertPem:     newCert,
+			BundlePem:   []byte("ROOT BUNDLE"),
+			Serial:      "deadbeef",
+			ExpiresUnix: time.Now().Add(10 * 24 * time.Hour).Unix(),
+		},
 	}
-	srv.StartTLS()
-	defer srv.Close()
 
 	rotated := make(chan struct{}, 1)
 	r := &CertRenewer{
 		AgentID:     "agent-a",
 		CertPath:    certPath,
 		KeyPath:     keyPath,
-		BundlePath:  filepath.Join(dir, "bundle.pem"),
-		CAPath:      caPath,
-		Endpoint:    srv.URL,
+		BundlePath:  bundlePath,
+		Client:      mock,
 		RenewBefore: 24 * time.Hour,
 		Logger:      slog.Default(),
 		OnRotated:   func() { rotated <- struct{}{} },
@@ -206,69 +163,77 @@ func TestCertRenewer_HappyPath(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("OnRotated not called")
 	}
-
-	got, err := os.ReadFile(certPath)
-	if err != nil {
-		t.Fatal(err)
+	if got, _ := os.ReadFile(certPath); string(got) != string(newCert) {
+		t.Fatal("cert was not replaced")
 	}
-	if string(got) != string(newCert) {
-		t.Fatal("cert file was not replaced")
+	if got, _ := os.ReadFile(keyPath); string(got) != string(keyPEM) {
+		t.Fatal("key changed: CSR-mode renew must keep the private key untouched")
 	}
-	gotKey, _ := os.ReadFile(keyPath)
-	if string(gotKey) != string(keyPEM) {
-		t.Fatal("key file changed: CSR-mode renew must leave the private key untouched")
+	if got, _ := os.ReadFile(bundlePath); string(got) != "ROOT BUNDLE" {
+		t.Fatal("bundle was not written")
 	}
-	_ = newKey
-	gotBundle, _ := os.ReadFile(r.BundlePath)
-	if string(gotBundle) != string(pki.caPEM) {
-		t.Fatal("bundle file was not replaced")
-	}
-	info, err := os.Stat(keyPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if mode := info.Mode().Perm(); mode != 0o600 {
-		t.Logf("key mode=%o (expected 0o600 on POSIX, may differ on Windows)", mode)
+	if mock.last == nil || mock.last.AgentId != "agent-a" || len(mock.last.CsrPem) == 0 {
+		t.Fatalf("RPC was not invoked correctly: %+v", mock.last)
 	}
 }
 
-func TestCertRenewer_HTTPError(t *testing.T) {
+func TestCertRenewer_BundleRolloverOnlyOnChange(t *testing.T) {
 	pki := makeTestPKI(t)
 	dir := t.TempDir()
 	certPath := filepath.Join(dir, "client.crt")
 	keyPath := filepath.Join(dir, "client.key")
-	caPath := filepath.Join(dir, "ca.pem")
+	bundlePath := filepath.Join(dir, "bundle.pem")
 	certPEM, keyPEM := pki.issueClient(t, "agent-a", time.Hour)
-	writeAll(t, map[string][]byte{certPath: certPEM, keyPath: keyPEM, caPath: pki.caPEM})
+	writeAll(t, map[string][]byte{certPath: certPEM, keyPath: keyPEM, bundlePath: []byte("ROOT BUNDLE")})
 
-	clientCAPool := x509.NewCertPool()
-	clientCAPool.AddCert(pki.caCert)
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "boom", http.StatusInternalServerError)
-	}))
-	srv.TLS = &tls.Config{
-		Certificates: []tls.Certificate{pki.serverCert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    clientCAPool,
-		MinVersion:   tls.VersionTLS12,
+	newCert, _ := pki.issueClient(t, "agent-a", 10*24*time.Hour)
+	mock := &fakeRenewClient{
+		resp: &pb.RenewCertResponse{
+			CertPem:     newCert,
+			BundlePem:   []byte("ROOT BUNDLE"),
+			Serial:      "abc",
+			ExpiresUnix: time.Now().Add(10 * 24 * time.Hour).Unix(),
+		},
 	}
-	srv.StartTLS()
-	defer srv.Close()
+	infoBefore, _ := os.Stat(bundlePath)
 
 	r := &CertRenewer{
 		AgentID:     "agent-a",
 		CertPath:    certPath,
 		KeyPath:     keyPath,
-		CAPath:      caPath,
-		Endpoint:    srv.URL,
+		BundlePath:  bundlePath,
+		Client:      mock,
+		RenewBefore: 24 * time.Hour,
+		Logger:      slog.Default(),
+	}
+	r.tick(context.Background(), slog.Default())
+	infoAfter, _ := os.Stat(bundlePath)
+	if !infoBefore.ModTime().Equal(infoAfter.ModTime()) {
+		t.Fatal("bundle was rewritten despite identical content")
+	}
+}
+
+func TestCertRenewer_RPCError(t *testing.T) {
+	pki := makeTestPKI(t)
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "client.crt")
+	keyPath := filepath.Join(dir, "client.key")
+	certPEM, keyPEM := pki.issueClient(t, "agent-a", time.Hour)
+	writeAll(t, map[string][]byte{certPath: certPEM, keyPath: keyPEM})
+
+	mock := &fakeRenewClient{err: errors.New("boom")}
+	r := &CertRenewer{
+		AgentID:     "agent-a",
+		CertPath:    certPath,
+		KeyPath:     keyPath,
+		Client:      mock,
 		RenewBefore: 24 * time.Hour,
 		Logger:      slog.Default(),
 	}
 	r.tick(context.Background(), slog.Default())
 
-	got, _ := os.ReadFile(certPath)
-	if string(got) != string(certPEM) {
-		t.Fatal("cert was rotated despite server error")
+	if got, _ := os.ReadFile(certPath); string(got) != string(certPEM) {
+		t.Fatal("cert was rotated despite RPC error")
 	}
 }
 

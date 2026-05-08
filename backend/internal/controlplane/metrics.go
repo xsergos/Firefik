@@ -70,7 +70,28 @@ var (
 		Name: "firefik_agent_cert_renew_failed_total",
 		Help: "Self-renewal attempts that failed, by reason.",
 	}, []string{"reason"})
+
+	AgentBundleRotatedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "firefik_agent_bundle_rotated_total",
+		Help: "ca-bundle.pem rotations driven by /v1/renew (RenewCert) responses.",
+	})
+
+	cpServerCertRenewedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "firefik_controlplane_server_cert_renewed_total",
+		Help: "Control-plane server certificate rotations, by reason.",
+	}, []string{"reason"})
+
+	cpServerCertRenewFailedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "firefik_controlplane_server_cert_renew_failed_total",
+		Help: "Control-plane server certificate rotation failures, by reason.",
+	}, []string{"reason"})
 )
+
+func IncServerCertRenewed(reason string) { cpServerCertRenewedTotal.WithLabelValues(reason).Inc() }
+
+func IncServerCertRenewFailed(reason string) {
+	cpServerCertRenewFailedTotal.WithLabelValues(reason).Inc()
+}
 
 func IncCACertsIssued() { cpCACertsIssuedTotal.Inc() }
 

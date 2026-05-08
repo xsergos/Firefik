@@ -438,26 +438,42 @@ func run(logger *slog.Logger) error {
 			})
 		}
 
-		if cfg.ControlPlaneClientCert != "" && cfg.ControlPlaneClientKey != "" && cfg.ControlPlaneHTTP != "" {
-			renewer := &controlplane.CertRenewer{
-				AgentID:     identity.InstanceID,
-				CertPath:    cfg.ControlPlaneClientCert,
-				KeyPath:     cfg.ControlPlaneClientKey,
-				CAPath:      cfg.ControlPlaneCACert,
-				Endpoint:    cfg.ControlPlaneHTTP,
-				Insecure:    cfg.ControlPlaneInsecure,
-				RenewBefore: time.Duration(cfg.CertRenewBeforeS) * time.Second,
-				Interval:    time.Duration(cfg.CertRenewIntervalS) * time.Second,
-				TTLSeconds:  cfg.CertRenewTTLS,
-				Logger:      logger,
-			}
-			logger.Info("control-plane cert renewer enabled",
-				"renew_before", renewer.RenewBefore,
-				"interval", renewer.Interval,
-			)
-			g.Go(func() error {
-				return renewer.Run(gctx)
+		if cfg.ControlPlaneClientCert != "" && cfg.ControlPlaneClientKey != "" && cfg.ControlPlaneGRPC != "" {
+			rc, conn, err := controlplane.DialRenewClient(controlplane.RenewGRPCDialConfig{
+				Endpoint: cfg.ControlPlaneGRPC,
+				CertPath: cfg.ControlPlaneClientCert,
+				KeyPath:  cfg.ControlPlaneClientKey,
+				CAPath:   cfg.ControlPlaneCACert,
+				Insecure: cfg.ControlPlaneInsecure,
 			})
+			if err != nil {
+				logger.Warn("cert renewer dial failed; renewer disabled", "error", err)
+			} else {
+				bundlePath := cfg.ControlPlaneCACert
+				renewer := &controlplane.CertRenewer{
+					AgentID:     identity.InstanceID,
+					CertPath:    cfg.ControlPlaneClientCert,
+					KeyPath:     cfg.ControlPlaneClientKey,
+					BundlePath:  bundlePath,
+					Client:      rc,
+					RenewBefore: time.Duration(cfg.CertRenewBeforeS) * time.Second,
+					Interval:    time.Duration(cfg.CertRenewIntervalS) * time.Second,
+					TTLSeconds:  cfg.CertRenewTTLS,
+					Logger:      logger,
+				}
+				logger.Info("control-plane cert renewer enabled",
+					"renew_before", renewer.RenewBefore,
+					"interval", renewer.Interval,
+				)
+				g.Go(func() error {
+					return renewer.Run(gctx)
+				})
+				g.Go(func() error {
+					<-gctx.Done()
+					_ = conn.Close()
+					return nil
+				})
+			}
 		}
 	}
 

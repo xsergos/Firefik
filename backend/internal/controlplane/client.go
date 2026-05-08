@@ -11,6 +11,11 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	pb "firefik/internal/controlplane/gen/controlplanev1"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 type EnrollRequest struct {
@@ -29,14 +34,6 @@ type EnrollResponse struct {
 	NotAfterUnix int64  `json:"not_after_unix"`
 }
 
-type RenewRequest struct {
-	AgentID    string `json:"agent_id"`
-	TTLSeconds int    `json:"ttl_seconds,omitempty"`
-	CSRPEM     string `json:"csr_pem,omitempty"`
-}
-
-type RenewResponse = EnrollResponse
-
 type EnrollClient struct {
 	Endpoint string
 	Token    string
@@ -49,6 +46,37 @@ func NewEnrollClient(endpoint, token string) *EnrollClient {
 		Token:    token,
 		HTTP:     &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+type RenewGRPCDialConfig struct {
+	Endpoint string
+	CertPath string
+	KeyPath  string
+	CAPath   string
+	Insecure bool
+}
+
+func DialRenewClient(cfg RenewGRPCDialConfig) (pb.ControlPlaneClient, *grpc.ClientConn, error) {
+	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: cfg.Insecure}
+	if cfg.CAPath != "" {
+		caPEM, err := os.ReadFile(cfg.CAPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("read ca: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, nil, fmt.Errorf("no certs in %s", cfg.CAPath)
+		}
+		tlsCfg.RootCAs = pool
+	}
+	loader := newKeyPairLoader(cfg.CertPath, cfg.KeyPath)
+	tlsCfg.GetClientCertificate = loader.GetClientCertificate
+
+	conn, err := grpc.NewClient(cfg.Endpoint, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
+	if err != nil {
+		return nil, nil, fmt.Errorf("grpc dial %s: %w", cfg.Endpoint, err)
+	}
+	return pb.NewControlPlaneClient(conn), conn, nil
 }
 
 func (c *EnrollClient) Enroll(ctx context.Context, req EnrollRequest) (*EnrollResponse, error) {
@@ -76,65 +104,6 @@ func (c *EnrollClient) Enroll(ctx context.Context, req EnrollRequest) (*EnrollRe
 	var out EnrollResponse
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil, fmt.Errorf("decode enroll: %w", err)
-	}
-	return &out, nil
-}
-
-type RenewClient struct {
-	Endpoint string
-	HTTP     *http.Client
-}
-
-func NewRenewClient(endpoint, certPath, keyPath, caPath string) (*RenewClient, error) {
-	return NewRenewClientWithOptions(endpoint, certPath, keyPath, caPath, false)
-}
-
-func NewRenewClientWithOptions(endpoint, certPath, keyPath, caPath string, insecureSkipVerify bool) (*RenewClient, error) {
-	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: insecureSkipVerify}
-	if caPath != "" {
-		caPEM, err := os.ReadFile(caPath)
-		if err != nil {
-			return nil, fmt.Errorf("read ca: %w", err)
-		}
-		pool := x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(caPEM) {
-			return nil, fmt.Errorf("no certs in %s", caPath)
-		}
-		tlsCfg.RootCAs = pool
-	}
-	loader := newKeyPairLoader(certPath, keyPath)
-	tlsCfg.GetClientCertificate = loader.getClientCertificate
-	return &RenewClient{
-		Endpoint: endpoint,
-		HTTP: &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: &http.Transport{TLSClientConfig: tlsCfg},
-		},
-	}, nil
-}
-
-func (c *RenewClient) Renew(ctx context.Context, req RenewRequest) (*RenewResponse, error) {
-	body, err := json.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.Endpoint+"/v1/renew", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	resp, err := c.HTTP.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("renew returned %d: %s", resp.StatusCode, string(raw))
-	}
-	var out RenewResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, fmt.Errorf("decode renew: %w", err)
 	}
 	return &out, nil
 }

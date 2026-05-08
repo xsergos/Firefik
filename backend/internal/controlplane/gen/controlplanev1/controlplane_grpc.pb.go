@@ -25,6 +25,7 @@ const (
 	ControlPlane_ListTemplates_FullMethodName   = "/firefik.controlplane.v1.ControlPlane/ListTemplates"
 	ControlPlane_GetTemplate_FullMethodName     = "/firefik.controlplane.v1.ControlPlane/GetTemplate"
 	ControlPlane_PublishTemplate_FullMethodName = "/firefik.controlplane.v1.ControlPlane/PublishTemplate"
+	ControlPlane_RenewCert_FullMethodName       = "/firefik.controlplane.v1.ControlPlane/RenewCert"
 )
 
 // ControlPlaneClient is the client API for ControlPlane service.
@@ -37,6 +38,7 @@ type ControlPlaneClient interface {
 	ListTemplates(ctx context.Context, in *ListTemplatesRequest, opts ...grpc.CallOption) (*ListTemplatesResponse, error)
 	GetTemplate(ctx context.Context, in *GetTemplateRequest, opts ...grpc.CallOption) (*PolicyTemplate, error)
 	PublishTemplate(ctx context.Context, in *PublishTemplateRequest, opts ...grpc.CallOption) (*PublishTemplateResponse, error)
+	RenewCert(ctx context.Context, in *RenewCertRequest, opts ...grpc.CallOption) (*RenewCertResponse, error)
 }
 
 type controlPlaneClient struct {
@@ -110,6 +112,16 @@ func (c *controlPlaneClient) PublishTemplate(ctx context.Context, in *PublishTem
 	return out, nil
 }
 
+func (c *controlPlaneClient) RenewCert(ctx context.Context, in *RenewCertRequest, opts ...grpc.CallOption) (*RenewCertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RenewCertResponse)
+	err := c.cc.Invoke(ctx, ControlPlane_RenewCert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ControlPlaneServer is the server API for ControlPlane service.
 // All implementations must embed UnimplementedControlPlaneServer
 // for forward compatibility.
@@ -120,6 +132,7 @@ type ControlPlaneServer interface {
 	ListTemplates(context.Context, *ListTemplatesRequest) (*ListTemplatesResponse, error)
 	GetTemplate(context.Context, *GetTemplateRequest) (*PolicyTemplate, error)
 	PublishTemplate(context.Context, *PublishTemplateRequest) (*PublishTemplateResponse, error)
+	RenewCert(context.Context, *RenewCertRequest) (*RenewCertResponse, error)
 	mustEmbedUnimplementedControlPlaneServer()
 }
 
@@ -147,6 +160,9 @@ func (UnimplementedControlPlaneServer) GetTemplate(context.Context, *GetTemplate
 }
 func (UnimplementedControlPlaneServer) PublishTemplate(context.Context, *PublishTemplateRequest) (*PublishTemplateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PublishTemplate not implemented")
+}
+func (UnimplementedControlPlaneServer) RenewCert(context.Context, *RenewCertRequest) (*RenewCertResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RenewCert not implemented")
 }
 func (UnimplementedControlPlaneServer) mustEmbedUnimplementedControlPlaneServer() {}
 func (UnimplementedControlPlaneServer) testEmbeddedByValue()                      {}
@@ -266,6 +282,24 @@ func _ControlPlane_PublishTemplate_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ControlPlane_RenewCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenewCertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServer).RenewCert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlane_RenewCert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServer).RenewCert(ctx, req.(*RenewCertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ControlPlane_ServiceDesc is the grpc.ServiceDesc for ControlPlane service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -292,6 +326,10 @@ var ControlPlane_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PublishTemplate",
 			Handler:    _ControlPlane_PublishTemplate_Handler,
+		},
+		{
+			MethodName: "RenewCert",
+			Handler:    _ControlPlane_RenewCert_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

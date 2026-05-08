@@ -50,7 +50,7 @@ func TestKeyPairLoader_HotReload(t *testing.T) {
 	writeKeypair(t, certPath, keyPath, "v1")
 	loader := newKeyPairLoader(certPath, keyPath)
 
-	first, err := loader.getClientCertificate(nil)
+	first, err := loader.GetClientCertificate(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestKeyPairLoader_HotReload(t *testing.T) {
 	time.Sleep(15 * time.Millisecond)
 	writeKeypair(t, certPath, keyPath, "v2")
 
-	second, err := loader.getClientCertificate(nil)
+	second, err := loader.GetClientCertificate(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,8 +77,8 @@ func TestKeyPairLoader_CacheSticks(t *testing.T) {
 	writeKeypair(t, certPath, keyPath, "stable")
 	loader := newKeyPairLoader(certPath, keyPath)
 
-	a, _ := loader.getClientCertificate(nil)
-	b, _ := loader.getClientCertificate(nil)
+	a, _ := loader.GetClientCertificate(nil)
+	b, _ := loader.GetClientCertificate(nil)
 	if a == nil || b == nil || a != b {
 		t.Fatalf("expected cached cert reuse, a=%p b=%p", a, b)
 	}
@@ -91,7 +91,7 @@ func TestKeyPairLoader_FallsBackToCacheOnReadError(t *testing.T) {
 	writeKeypair(t, certPath, keyPath, "first")
 	loader := newKeyPairLoader(certPath, keyPath)
 
-	first, err := loader.getClientCertificate(nil)
+	first, err := loader.GetClientCertificate(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestKeyPairLoader_FallsBackToCacheOnReadError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := loader.getClientCertificate(nil)
+	got, err := loader.GetClientCertificate(nil)
 	if err != nil {
 		t.Fatal(err)
 	}

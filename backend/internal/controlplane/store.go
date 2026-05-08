@@ -72,6 +72,9 @@ type Store interface {
 	ConsumeEnrollmentToken(ctx context.Context, token, ip string) (EnrollmentToken, error)
 	ListEnrollmentTokens(ctx context.Context, includeUsed bool) ([]EnrollmentToken, error)
 	RevokeEnrollmentToken(ctx context.Context, token string) error
+	RecordCertRenew(ctx context.Context, serial, agentID string, at time.Time) error
+	LastCertRenew(ctx context.Context, serial string) (time.Time, bool, error)
+	PruneCertRenewHistory(ctx context.Context, serials []string) error
 	Close() error
 }
 
@@ -675,6 +678,55 @@ func (s *sqliteStore) RevokeEnrollmentToken(ctx context.Context, token string) e
 	return nil
 }
 
+func (s *sqliteStore) RecordCertRenew(ctx context.Context, serial, agentID string, at time.Time) error {
+	if serial == "" {
+		return errors.New("empty serial")
+	}
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO cert_renew_history (serial, agent_id, last_renew_at) VALUES (?, ?, ?)
+		 ON CONFLICT(serial) DO UPDATE SET agent_id = excluded.agent_id, last_renew_at = excluded.last_renew_at`,
+		strings.ToLower(serial), agentID, at.UTC(),
+	)
+	return err
+}
+
+func (s *sqliteStore) LastCertRenew(ctx context.Context, serial string) (time.Time, bool, error) {
+	if serial == "" {
+		return time.Time{}, false, nil
+	}
+	row := s.db.QueryRowContext(ctx, `SELECT last_renew_at FROM cert_renew_history WHERE serial = ?`, strings.ToLower(serial))
+	var ts time.Time
+	if err := row.Scan(&ts); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return time.Time{}, false, nil
+		}
+		return time.Time{}, false, err
+	}
+	return ts, true, nil
+}
+
+func (s *sqliteStore) PruneCertRenewHistory(ctx context.Context, serials []string) error {
+	if len(serials) == 0 {
+		return nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	stmt, err := tx.PrepareContext(ctx, `DELETE FROM cert_renew_history WHERE serial = ?`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, s := range serials {
+		if _, err := stmt.ExecContext(ctx, strings.ToLower(s)); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func (s *sqliteStore) Close() error { return s.db.Close() }
 
 type memStore struct {
@@ -687,6 +739,7 @@ type memStore struct {
 	approvals   map[string]PendingApproval
 	snapshots   map[string]AgentSnapshot
 	enrollments map[string]EnrollmentToken
+	renewals    map[string]memRenewRow
 }
 
 func NewMemoryStore() Store {
@@ -699,6 +752,7 @@ func NewMemoryStore() Store {
 		approvals:   map[string]PendingApproval{},
 		snapshots:   map[string]AgentSnapshot{},
 		enrollments: map[string]EnrollmentToken{},
+		renewals:    map[string]memRenewRow{},
 	}
 }
 
@@ -1036,6 +1090,46 @@ func (m *memStore) RevokeEnrollmentToken(_ context.Context, token string) error 
 	et.ConsumedAt = &now
 	et.ConsumerIP = "revoked"
 	m.enrollments[token] = et
+	return nil
+}
+
+type memRenewRow struct {
+	agentID string
+	at      time.Time
+}
+
+func (m *memStore) RecordCertRenew(_ context.Context, serial, agentID string, at time.Time) error {
+	if serial == "" {
+		return errors.New("empty serial")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.renewals == nil {
+		m.renewals = map[string]memRenewRow{}
+	}
+	m.renewals[strings.ToLower(serial)] = memRenewRow{agentID: agentID, at: at.UTC()}
+	return nil
+}
+
+func (m *memStore) LastCertRenew(_ context.Context, serial string) (time.Time, bool, error) {
+	if serial == "" {
+		return time.Time{}, false, nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	row, ok := m.renewals[strings.ToLower(serial)]
+	if !ok {
+		return time.Time{}, false, nil
+	}
+	return row.at, true, nil
+}
+
+func (m *memStore) PruneCertRenewHistory(_ context.Context, serials []string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, s := range serials {
+		delete(m.renewals, strings.ToLower(s))
+	}
 	return nil
 }
 

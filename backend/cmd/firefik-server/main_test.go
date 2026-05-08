@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -87,83 +88,73 @@ func writeCertAndKey(t *testing.T, dir string) (certPath, keyPath string) {
 	return certPath, keyPath
 }
 
-func TestBuildTLSAllEmpty(t *testing.T) {
-	cfg, err := buildTLS("", "", "", "")
+func TestBuildTLSConfigsAllEmpty(t *testing.T) {
+	httpCfg, grpcCfg, err := buildTLSConfigs("", "", "", "", nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if cfg != nil {
-		t.Errorf("expected nil tls config when nothing set")
+	if httpCfg != nil || grpcCfg != nil {
+		t.Errorf("expected nil tls configs when nothing set")
 	}
 }
 
-func TestBuildTLSCertWithoutKey(t *testing.T) {
-	if _, err := buildTLS("cert.pem", "", "", ""); err == nil {
+func TestBuildTLSConfigsCertWithoutKey(t *testing.T) {
+	if _, _, err := buildTLSConfigs("cert.pem", "", "", "", nil); err == nil {
 		t.Fatal("expected error")
 	}
-	if _, err := buildTLS("", "key.pem", "", ""); err == nil {
+	if _, _, err := buildTLSConfigs("", "key.pem", "", "", nil); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestBuildTLSCertAndKey(t *testing.T) {
+func TestBuildTLSConfigsRequiresClientCAOrCA(t *testing.T) {
 	dir := t.TempDir()
 	certPath, keyPath := writeCertAndKey(t, dir)
-	cfg, err := buildTLS(certPath, keyPath, "", "")
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if cfg == nil {
-		t.Fatal("expected tls config")
+	if _, _, err := buildTLSConfigs(certPath, keyPath, "", "", nil); err == nil {
+		t.Fatal("expected error when neither --client-ca nor mini-CA is provided")
 	}
 }
 
-func TestBuildTLSWithClientCA(t *testing.T) {
+func TestBuildTLSConfigsWithClientCA(t *testing.T) {
 	dir := t.TempDir()
 	certPath, keyPath := writeCertAndKey(t, dir)
 	caPath := writeCAPEM(t, dir)
-	cfg, err := buildTLS(certPath, keyPath, caPath, "")
+	httpCfg, grpcCfg, err := buildTLSConfigs(certPath, keyPath, caPath, "", nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if cfg.ClientCAs == nil {
-		t.Errorf("expected ClientCAs set")
+	if httpCfg.ClientAuth != tls.NoClientCert {
+		t.Errorf("HTTP listener must use NoClientCert, got %v", httpCfg.ClientAuth)
+	}
+	if grpcCfg.ClientCAs == nil || grpcCfg.ClientAuth != tls.RequireAndVerifyClientCert {
+		t.Errorf("gRPC listener must require client cert; got %+v", grpcCfg.ClientAuth)
 	}
 }
 
-func TestBuildTLSMissingClientCA(t *testing.T) {
-	dir := t.TempDir()
-	certPath, keyPath := writeCertAndKey(t, dir)
-	if _, err := buildTLS(certPath, keyPath, "/no/such/file", ""); err == nil {
-		t.Fatal("expected error")
-	}
-}
-
-func TestBuildTLSInvalidCAPEM(t *testing.T) {
+func TestBuildTLSConfigsInvalidCAPEM(t *testing.T) {
 	dir := t.TempDir()
 	certPath, keyPath := writeCertAndKey(t, dir)
 	bad := filepath.Join(dir, "bad.pem")
 	if err := os.WriteFile(bad, []byte("not pem"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := buildTLS(certPath, keyPath, bad, ""); err == nil {
+	if _, _, err := buildTLSConfigs(certPath, keyPath, bad, "", nil); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestBuildTLSWithTrustDomain(t *testing.T) {
+func TestBuildTLSConfigsWithTrustDomain(t *testing.T) {
 	dir := t.TempDir()
 	certPath, keyPath := writeCertAndKey(t, dir)
 	caPath := writeCAPEM(t, dir)
-	cfg, err := buildTLS(certPath, keyPath, caPath, "spiffe://test")
+	_, grpcCfg, err := buildTLSConfigs(certPath, keyPath, caPath, "spiffe://test", nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if cfg.VerifyPeerCertificate == nil {
+	if grpcCfg.VerifyPeerCertificate == nil {
 		t.Error("expected VerifyPeerCertificate set when trust-domain present")
 	}
-	err = cfg.VerifyPeerCertificate(nil, nil)
-	if err == nil {
+	if err := grpcCfg.VerifyPeerCertificate(nil, nil); err == nil {
 		t.Errorf("expected error from empty rawCerts")
 	}
 }

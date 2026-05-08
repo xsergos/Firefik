@@ -165,7 +165,7 @@ func buildClientTLS(insecureSkipVerify bool, caPath, certPath, keyPath string) (
 			return nil, fmt.Errorf("client cert/key: %w", err)
 		}
 		loader := newKeyPairLoader(certPath, keyPath)
-		cfg.GetClientCertificate = loader.getClientCertificate
+		cfg.GetClientCertificate = loader.GetClientCertificate
 	}
 	return cfg, nil
 }

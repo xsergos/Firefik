@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type keyPairLoader struct {
+type KeypairLoader struct {
 	certPath string
 	keyPath  string
 
@@ -17,11 +17,23 @@ type keyPairLoader struct {
 	keyMtime  time.Time
 }
 
-func newKeyPairLoader(certPath, keyPath string) *keyPairLoader {
-	return &keyPairLoader{certPath: certPath, keyPath: keyPath}
+func newKeyPairLoader(certPath, keyPath string) *KeypairLoader {
+	return &KeypairLoader{certPath: certPath, keyPath: keyPath}
 }
 
-func (l *keyPairLoader) getClientCertificate(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+func NewKeypairLoader(certPath, keyPath string) *KeypairLoader {
+	return newKeyPairLoader(certPath, keyPath)
+}
+
+func (l *KeypairLoader) GetServerCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	return l.load()
+}
+
+func (l *KeypairLoader) GetClientCertificate(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	return l.load()
+}
+
+func (l *KeypairLoader) load() (*tls.Certificate, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 

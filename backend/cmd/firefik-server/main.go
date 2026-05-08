@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -50,6 +52,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "cert":
+			if err := runCert(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "firefik-server cert:", err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 	if err := run(); err != nil {
@@ -61,9 +69,9 @@ func main() {
 func run() error {
 	listen := flag.String("listen", ":8443", "bind address for the HTTP enroll / healthz endpoints")
 	grpcListen := flag.String("grpc-listen", ":8444", "bind address for the gRPC transport (empty disables)")
-	certFile := flag.String("cert", "", "TLS certificate (PEM)")
-	keyFile := flag.String("key", "", "TLS key (PEM)")
-	clientCA := flag.String("client-ca", "", "client CA bundle (PEM); enables mTLS when set")
+	certFile := flag.String("cert", "", "TLS certificate (PEM); override for auto-issued mini-CA cert")
+	keyFile := flag.String("key", "", "TLS key (PEM); override for auto-issued mini-CA cert")
+	clientCA := flag.String("client-ca", "", "client CA bundle (PEM) for gRPC mTLS; defaults to embedded mini-CA root+issuing")
 	caStateDir := flag.String("ca-state-dir", defaultCAStateDir(), "embedded mini-CA state dir (empty disables /v1/enroll)")
 	trustDomain := flag.String("trust-domain", trustDomainFromEnv(), "SPIFFE trust domain (enables SAN verification when set)")
 	tokenFile := flag.String("token-file", "", "shared bearer token file for agent auth")
@@ -72,6 +80,12 @@ func run() error {
 	auditRetention := flag.Duration("audit-retention", 90*24*time.Hour, "audit rows older than this are purged")
 	snapshotsPerAgent := flag.Int("snapshots-per-agent", 100, "max retained snapshot rows per agent")
 	retentionInterval := flag.Duration("retention-interval", 15*time.Minute, "how often the retention loop runs")
+	serverNamesCSV := flag.String("server-name", "", "comma-separated SAN list for the auto-issued CP server cert (DNS); default = hostname,controlplane")
+	serverCertTTL := flag.Duration("server-cert-ttl", 365*24*time.Hour, "TTL for the auto-issued CP server cert")
+	serverCertRenewBefore := flag.Duration("server-cert-renew-before", 30*24*time.Hour, "daily-check renews server cert when remaining < this")
+	serverCertKeypairPrefix := flag.String("server-cert-keypair", "", "path prefix for auto-issued server cert (suffix .crt/.key); default <ca-state-dir>/cp-server")
+	minRenewInterval := flag.Duration("min-renew-interval", 5*time.Minute, "rate limit between two RenewCert RPCs from the same cert serial")
+	renewWindow := flag.Duration("renew-window", 24*time.Hour, "RenewCert is rejected unless the peer cert expires within this window")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -114,6 +128,18 @@ func run() error {
 		}
 	}
 
+	resolvedCertPath := *certFile
+	resolvedKeyPath := *keyFile
+	autoServerCert := *certFile == "" && *keyFile == "" && ca != nil
+	if autoServerCert {
+		prefix := *serverCertKeypairPrefix
+		if prefix == "" {
+			prefix = filepath.Join(*caStateDir, "cp-server")
+		}
+		resolvedCertPath = prefix + ".crt"
+		resolvedKeyPath = prefix + ".key"
+	}
+
 	ctxBoot, bootCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer bootCancel()
 	var store controlplane.Store
@@ -136,16 +162,35 @@ func run() error {
 		}
 	}()
 
+	var serverMgr *serverCertManager
+	if autoServerCert {
+		dnsNames := splitCSV(*serverNamesCSV)
+		if len(dnsNames) == 0 {
+			dnsNames = defaultServerNames()
+		}
+		serverMgr = &serverCertManager{
+			CA:          ca,
+			CertPath:    resolvedCertPath,
+			KeyPath:     resolvedKeyPath,
+			DNSNames:    dnsNames,
+			IPAddresses: []string{"127.0.0.1", "::1"},
+			TTL:         *serverCertTTL,
+			RenewBefore: *serverCertRenewBefore,
+			Logger:      logger,
+			Audit:       auditFanOut,
+		}
+		if err := serverMgr.ensureAtStartup(); err != nil {
+			return fmt.Errorf("auto-issue server cert: %w", err)
+		}
+	}
+
 	var enrollHandler controlplane.EnrollHandler
-	var renewHandler controlplane.EnrollHandler
 	if ca != nil {
 		enrollHandler = makeEnrollHandler(ca, token, store, logger)
-		renewHandler = makeRenewHandler(ca, *trustDomain, auditFanOut, logger)
 	}
 
 	srv := &controlplane.HTTPServer{
 		EnrollHandle: enrollHandler,
-		RenewHandle:  renewHandler,
 		Registry:     registry,
 		Token:        token,
 		Audit:        auditFanOut,
@@ -159,11 +204,11 @@ func run() error {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	tlsCfg, err := buildTLS(*certFile, *keyFile, *clientCA, *trustDomain)
+	httpTLS, grpcTLS, err := buildTLSConfigs(resolvedCertPath, resolvedKeyPath, *clientCA, *trustDomain, ca)
 	if err != nil {
 		return err
 	}
-	httpSrv.TLSConfig = tlsCfg
+	httpSrv.TLSConfig = httpTLS
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -187,19 +232,27 @@ func run() error {
 	logger.Info("firefik-server ready",
 		"http_addr", *listen,
 		"grpc_addr", *grpcListen,
-		"tls", tlsCfg != nil,
-		"mtls", *clientCA != "",
+		"http_tls", httpTLS != nil,
+		"grpc_mtls", grpcTLS != nil,
 		"trust_domain", *trustDomain,
 		"enroll", ca != nil,
+		"auto_server_cert", autoServerCert,
 		"token_required", token != "",
 		"db", *dbPath,
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
 
+	if serverMgr != nil {
+		g.Go(func() error {
+			serverMgr.runDaily(gctx)
+			return nil
+		})
+	}
+
 	g.Go(func() error {
-		if tlsCfg != nil {
-			if err := httpSrv.ServeTLS(ln, *certFile, *keyFile); err != nil && err != http.ErrServerClosed {
+		if httpTLS != nil {
+			if err := httpSrv.ServeTLS(ln, "", ""); err != nil && err != http.ErrServerClosed {
 				return err
 			}
 		} else {
@@ -217,20 +270,25 @@ func run() error {
 		}
 
 		var serverOpts []grpc.ServerOption
-		if tlsCfg != nil {
-			serverOpts = append(serverOpts, grpc.Creds(credentials.NewTLS(tlsCfg)))
+		if grpcTLS != nil {
+			serverOpts = append(serverOpts, grpc.Creds(credentials.NewTLS(grpcTLS)))
 		}
-		if token != "" {
-			serverOpts = append(serverOpts,
-				grpc.UnaryInterceptor(unaryAuth(token)),
-				grpc.StreamInterceptor(streamAuth(token)),
-			)
-		}
+		serverOpts = append(serverOpts,
+			grpc.UnaryInterceptor(unaryAuth(token)),
+			grpc.StreamInterceptor(streamAuth(token)),
+		)
 		gs := grpc.NewServer(serverOpts...)
 		grpcSvc := &controlplane.GRPCServer{
-			Registry: registry,
-			Token:    token,
-			Logger:   logger,
+			Registry:         registry,
+			Token:            token,
+			Logger:           logger,
+			TrustDomain:      *trustDomain,
+			RenewWindow:      *renewWindow,
+			MinRenewInterval: *minRenewInterval,
+			Audit:            auditFanOut,
+		}
+		if ca != nil {
+			grpcSvc.CA = controlplane.MCAAdapter{CA: ca}
 		}
 		pb.RegisterControlPlaneServer(gs, grpcSvc)
 
@@ -250,8 +308,32 @@ func run() error {
 	return g.Wait()
 }
 
+func splitCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+var bearerExemptMethods = map[string]struct{}{
+	"/firefik.controlplane.v1.ControlPlane/RenewCert": {},
+}
+
 func unaryAuth(token string) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if info != nil {
+			if _, exempt := bearerExemptMethods[info.FullMethod]; exempt {
+				return handler(ctx, req)
+			}
+		}
 		if err := checkBearer(ctx, token); err != nil {
 			return nil, err
 		}
@@ -304,31 +386,47 @@ func trustDomainFromEnv() string {
 	return ""
 }
 
-func buildTLS(cert, key, clientCA, trustDomain string) (*tls.Config, error) {
-	if cert == "" && key == "" && clientCA == "" {
-		return nil, nil
+func buildTLSConfigs(cert, key, clientCA, trustDomain string, ca *mca.CA) (*tls.Config, *tls.Config, error) {
+	if cert == "" && key == "" {
+		return nil, nil, nil
 	}
 	if cert == "" || key == "" {
-		return nil, fmt.Errorf("--cert and --key are both required")
+		return nil, nil, fmt.Errorf("server cert and key are both required")
 	}
-	cfg := &tls.Config{
-		MinVersion: tls.VersionTLS12,
+	loader := controlplane.NewKeypairLoader(cert, key)
+	httpCfg := &tls.Config{
+		MinVersion:     tls.VersionTLS12,
+		GetCertificate: loader.GetServerCertificate,
+		ClientAuth:     tls.NoClientCert,
 	}
+	grpcCfg := &tls.Config{
+		MinVersion:     tls.VersionTLS12,
+		GetCertificate: loader.GetServerCertificate,
+		ClientAuth:     tls.RequireAndVerifyClientCert,
+	}
+
+	var clientPool *x509.CertPool
 	if clientCA != "" {
 		caPEM, err := os.ReadFile(clientCA)
 		if err != nil {
-			return nil, fmt.Errorf("read client-ca: %w", err)
+			return nil, nil, fmt.Errorf("read client-ca: %w", err)
 		}
 		pool, err := readCertPool(caPEM)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		cfg.ClientCAs = pool
-		cfg.ClientAuth = tls.VerifyClientCertIfGiven
+		clientPool = pool
+	} else if ca != nil {
+		clientPool = ca.ClientCAPool()
 	}
+	if clientPool == nil {
+		return nil, nil, fmt.Errorf("gRPC mTLS requires either --client-ca or an embedded mini-CA")
+	}
+	grpcCfg.ClientCAs = clientPool
+
 	if trustDomain != "" {
 		base := mca.VerifySPIFFEPeer(trustDomain)
-		cfg.VerifyPeerCertificate = func(rawCerts [][]byte, chains [][]*x509.Certificate) error {
+		grpcCfg.VerifyPeerCertificate = func(rawCerts [][]byte, chains [][]*x509.Certificate) error {
 			if err := base(rawCerts, chains); err != nil {
 				reason := "no_spiffe_san"
 				if len(rawCerts) == 0 {
@@ -340,7 +438,7 @@ func buildTLS(cert, key, clientCA, trustDomain string) (*tls.Config, error) {
 			return nil
 		}
 	}
-	return cfg, nil
+	return httpCfg, grpcCfg, nil
 }
 
 func makeEnrollHandler(ca *mca.CA, token string, store controlplane.Store, logger *slog.Logger) controlplane.EnrollHandler {

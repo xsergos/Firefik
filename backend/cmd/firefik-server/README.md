@@ -57,18 +57,21 @@ HTTP `/v1/enroll` endpoint.
 |--------|------|--------|---------|
 | GET  | `/healthz` | anyone | Liveness probe (unauthenticated). |
 | POST | `/v1/enroll` | agent (bearer or one-time enrollment token) | Initial mTLS client cert from embedded mini-CA. |
-| POST | `/v1/renew`  | agent (mTLS only) | Self-renewal: re-issue cert when within renewal window; agent_id is enforced from the peer SPIFFE SAN. |
+
+> The HTTP listener no longer carries `/v1/renew`. Renewal is a unary
+> gRPC RPC `ControlPlane.RenewCert` on `:8444` with mTLS verification
+> + per-cert rate-limit (`--min-renew-interval`).
 
 ## Agent integration
 
 Agents (firefik-back) opt in by setting:
 
-- `FIREFIK_CONTROL_PLANE_GRPC=cp.example:8444`
-- `FIREFIK_CONTROL_PLANE_HTTP=https://cp.example:8443` (required for self-renewal)
+- `FIREFIK_CONTROL_PLANE_GRPC=cp.example:8444` (machine API + RenewCert)
+- `FIREFIK_CONTROL_PLANE_HTTP=https://cp.example:8443` (bootstrap-only — `/v1/enroll`)
 - `FIREFIK_CONTROL_PLANE_CA_CERT=/etc/firefik/ca-bundle.pem`
 - `FIREFIK_CONTROL_PLANE_CLIENT_CERT=/etc/firefik/client.crt`
 - `FIREFIK_CONTROL_PLANE_CLIENT_KEY=/etc/firefik/client.key`
-- `FIREFIK_CONTROL_PLANE_TOKEN=…` (optional; supplementary to mTLS)
+- `FIREFIK_CONTROL_PLANE_TOKEN=…` (optional; bearer for non-RenewCert RPCs)
 - `FIREFIK_CONTROL_PLANE_CERT_RENEW_BEFORE=259200` (default 72h, in seconds)
 - `FIREFIK_CONTROL_PLANE_CERT_RENEW_INTERVAL=1800` (default 30m, in seconds)
 - `FIREFIK_CONTROL_PLANE_CERT_RENEW_TTL=2592000` (default 720h, in seconds)
@@ -78,13 +81,19 @@ control plane is an observer, not a master.
 
 ## Features
 
-- Embedded mini-CA subcommand (`firefik-server mini-ca init|issue`)
-  + `/v1/enroll` endpoint + `firefik-admin enroll [--renew]`.
-- Agent-driven self-renewal via `/v1/renew` (mTLS only) — no operator
-  bearer required, agent rotates its own cert before expiry.
+- Embedded mini-CA subcommands: `mini-ca init|issue|revoke|list-revoked`.
+- Agent-driven self-renewal via gRPC `ControlPlane.RenewCert` (mTLS only,
+  CSR-mode) — no operator bearer; per-cert rate-limit;
+  `ca-bundle.pem` rollover ships every successful renewal so mini-CA
+  root rotation propagates automatically.
 - SPIFFE SVID trust-domain enforcement via
   `FIREFIK_CP_TRUST_DOMAIN` / `--trust-domain`.
-- gRPC-only transport.
+- Auto-issued + auto-rotated server certificate (`--cert`/`--key` are
+  optional override; otherwise mini-CA signs `<ca-state-dir>/cp-server.{crt,key}`
+  at startup, daily-checks for near-expiry / SAN-mismatch / issuer-rotation,
+  and supports manual `firefik-server cert rotate [--force]`).
+- gRPC machine API on `:8444`; HTTP bootstrap on `:8443` runs
+  `tls.NoClientCert` (no client-cert mTLS at the HTTP layer).
 
 ## Out of scope
 

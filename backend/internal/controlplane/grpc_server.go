@@ -24,9 +24,14 @@ const DefaultHeartbeatInterval = 30 * time.Second
 type GRPCServer struct {
 	pb.UnimplementedControlPlaneServer
 
-	Registry *Registry
-	Token    string
-	Logger   *slog.Logger
+	Registry         *Registry
+	Token            string
+	Logger           *slog.Logger
+	CA               CertAuthority
+	TrustDomain      string
+	RenewWindow      time.Duration
+	MinRenewInterval time.Duration
+	Audit            AuditEmitter
 
 	activeStreams atomic.Int64
 }
