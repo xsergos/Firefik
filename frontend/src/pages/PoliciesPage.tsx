@@ -171,7 +171,7 @@ export default function PoliciesPage() {
             <label className="flex flex-col gap-1 text-sm flex-1 min-w-[200px]">
               <span className="text-muted-foreground">Name</span>
               <input
-                className="border px-2 py-1 rounded"
+                className="border border-input bg-background text-foreground placeholder:text-muted-foreground px-2 py-1 rounded"
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
                 placeholder="web-public"
@@ -180,7 +180,7 @@ export default function PoliciesPage() {
             <label className="flex flex-col gap-1 text-sm flex-1 min-w-[200px]">
               <span className="text-muted-foreground">Container (for simulate)</span>
               <input
-                className="border px-2 py-1 rounded"
+                className="border border-input bg-background text-foreground placeholder:text-muted-foreground px-2 py-1 rounded"
                 value={containerID}
                 onChange={(e) => setContainerID(e.target.value)}
                 placeholder="12-hex prefix or full id"
@@ -208,7 +208,7 @@ export default function PoliciesPage() {
             <label className="flex flex-col gap-1 text-sm flex-1 min-w-[260px]">
               <span className="text-muted-foreground">Save comment (optional)</span>
               <input
-                className="border px-2 py-1 rounded"
+                className="border border-input bg-background text-foreground placeholder:text-muted-foreground px-2 py-1 rounded"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="why this change"

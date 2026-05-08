@@ -179,15 +179,24 @@ export default function ContainersPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-bold">{t("containers.title")}</h1>
         <div className="flex items-center gap-2">
-          <input
-            ref={searchRef}
-            type="search"
-            placeholder={t("containers.filterPlaceholder")}
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="border px-2 py-1 rounded text-sm w-72"
-            aria-label="Filter containers"
-          />
+          <div className="flex flex-col gap-0.5">
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder={t("containers.filterPlaceholder")}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="border border-input bg-background text-foreground placeholder:text-muted-foreground px-2 py-1 rounded text-sm w-72"
+              aria-label="Filter containers"
+            />
+            <span className="text-[10px] text-muted-foreground leading-tight">
+              <kbd className="px-1 rounded bg-muted text-foreground font-mono">/</kbd> focus
+              {" · "}
+              <kbd className="px-1 rounded bg-muted text-foreground font-mono">a</kbd> apply
+              {" · "}
+              <kbd className="px-1 rounded bg-muted text-foreground font-mono">d</kbd> deactivate
+            </span>
+          </div>
           {filter && (
             <button
               className="text-xs text-muted-foreground hover:text-foreground"

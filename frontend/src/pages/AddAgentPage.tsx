@@ -100,7 +100,7 @@ services:
               setInstanceID(e.target.value.trim());
               setIssued(null);
             }}
-            className="border px-2 py-1 rounded text-sm w-full font-mono"
+            className="border border-input bg-background text-foreground placeholder:text-muted-foreground px-2 py-1 rounded text-sm w-full font-mono"
           />
           {!validInstance && (
             <span className="text-xs text-destructive">
@@ -116,7 +116,7 @@ services:
             max={1440}
             value={ttlMinutes}
             onChange={(e) => setTtlMinutes(Math.max(1, parseInt(e.target.value, 10) || DEFAULT_TTL_MINUTES))}
-            className="border px-2 py-1 rounded text-sm w-full font-mono"
+            className="border border-input bg-background text-foreground placeholder:text-muted-foreground px-2 py-1 rounded text-sm w-full font-mono"
           />
         </Field>
 
@@ -124,7 +124,7 @@ services:
           <input
             value={cpHTTP}
             onChange={(e) => setCpHTTP(e.target.value.trim())}
-            className="border px-2 py-1 rounded text-sm w-full font-mono"
+            className="border border-input bg-background text-foreground placeholder:text-muted-foreground px-2 py-1 rounded text-sm w-full font-mono"
           />
           {!validHTTP && (
             <span className="text-xs text-destructive">
@@ -137,7 +137,7 @@ services:
           <input
             value={cpGRPC}
             onChange={(e) => setCpGRPC(e.target.value.trim())}
-            className="border px-2 py-1 rounded text-sm w-full font-mono"
+            className="border border-input bg-background text-foreground placeholder:text-muted-foreground px-2 py-1 rounded text-sm w-full font-mono"
           />
           {!validGRPC && (
             <span className="text-xs text-destructive">

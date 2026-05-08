@@ -17,7 +17,7 @@
   },
   "containers": {
     "title": "Containers",
-    "filterPlaceholder": "Filter… (/ focus, a apply, d deactivate)",
+    "filterPlaceholder": "Filter…",
     "clearFilter": "clear",
     "emptyAll": "No containers yet.",
     "emptyFiltered": "No containers match \"{{filter}}\".",

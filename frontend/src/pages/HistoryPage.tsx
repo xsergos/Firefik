@@ -55,7 +55,7 @@ export default function HistoryPage() {
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted-foreground">Action</span>
           <input
-            className="border px-2 py-1 rounded w-40"
+            className="border border-input bg-background text-foreground placeholder:text-muted-foreground px-2 py-1 rounded w-40"
             placeholder="apply / remove / drift…"
             value={filter.action}
             onChange={(e) => setFilter({ ...filter, action: e.target.value })}
@@ -64,7 +64,7 @@ export default function HistoryPage() {
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted-foreground">Source</span>
           <input
-            className="border px-2 py-1 rounded w-40"
+            className="border border-input bg-background text-foreground placeholder:text-muted-foreground px-2 py-1 rounded w-40"
             placeholder="api / event / drift…"
             value={filter.source}
             onChange={(e) => setFilter({ ...filter, source: e.target.value })}
@@ -73,7 +73,7 @@ export default function HistoryPage() {
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted-foreground">Container (id or name)</span>
           <input
-            className="border px-2 py-1 rounded w-60"
+            className="border border-input bg-background text-foreground placeholder:text-muted-foreground px-2 py-1 rounded w-60"
             value={filter.container}
             onChange={(e) => setFilter({ ...filter, container: e.target.value })}
           />
