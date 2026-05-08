@@ -27,8 +27,6 @@ type serverCertManager struct {
 	RenewBefore time.Duration
 	Logger      *slog.Logger
 	Audit       controlplane.AuditEmitter
-
-	loader *controlplane.KeypairLoader
 }
 
 func (m *serverCertManager) ensureAtStartup() error {
