@@ -12,7 +12,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM golang:1.26.2-alpine AS caddy-build
+FROM golang:1.26.3-alpine AS caddy-build
 ARG CADDY_VERSION=v2.11.2
 RUN apk add --no-cache git
 ENV CGO_ENABLED=0
