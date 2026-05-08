@@ -75,8 +75,8 @@ jobs:
           build-args: |
             VERSION=${{ steps.tag.outputs.value }}
             ${{ matrix.component.extra_build_args }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.component.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component.name }}
 
       - name: Trivy scan ${{ matrix.component.name }} (amd64)
         uses: aquasecurity/trivy-action@master
@@ -86,6 +86,7 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: 1
           trivyignores: .trivyignore
+          cache: "true"
 
       - name: Smoke test arm64 image
         if: matrix.component.name == 'backend'

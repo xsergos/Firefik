@@ -6,8 +6,11 @@ import type { StatsResponse } from "@/types/api";
 import DashboardPage from "./DashboardPage";
 
 vi.mock("recharts", () => {
-  const Stub = ({ children }: { children?: React.ReactNode }) => (
-    <div data-testid="rechart-stub">{children}</div>
+  const SvgStub = ({ children }: { children?: React.ReactNode }) => (
+    <svg data-testid="rechart-stub">{children}</svg>
+  );
+  const Passthrough = ({ children }: { children?: React.ReactNode }) => (
+    <>{children}</>
   );
   const XAxis = ({ tickFormatter }: { tickFormatter?: (v: string) => string }) => (
     <div data-testid="xaxis-stub">
@@ -40,13 +43,13 @@ vi.mock("recharts", () => {
     </div>
   );
   return {
-    AreaChart: Stub,
-    Area: Stub,
+    AreaChart: SvgStub,
+    Area: Passthrough,
     XAxis,
-    YAxis: Stub,
+    YAxis: Passthrough,
     Tooltip,
     Legend,
-    ResponsiveContainer: Stub,
+    ResponsiveContainer: SvgStub,
   };
 });
 
