@@ -40,6 +40,28 @@ func TestOpenMissingDir(t *testing.T) {
 	}
 }
 
+func TestIssuingFingerprint(t *testing.T) {
+	dir := t.TempDir()
+	ca, err := Init(dir, "spiffe://t.firefik/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fp := ca.IssuingFingerprint()
+	if fp == "" {
+		t.Fatal("expected non-empty issuing fingerprint")
+	}
+	for _, c := range fp {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			t.Fatalf("expected hex, got %q", fp)
+		}
+	}
+
+	empty := &CA{}
+	if got := empty.IssuingFingerprint(); got != "" {
+		t.Fatalf("empty CA: expected empty, got %q", got)
+	}
+}
+
 func TestIssueEmptyAgent(t *testing.T) {
 	dir := t.TempDir()
 	ca, err := Init(dir, "spiffe://test/")

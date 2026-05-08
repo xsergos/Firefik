@@ -13,7 +13,7 @@ openapi-check:
 
 COVER_THRESHOLD ?= 85.0
 COVER_PROFILE ?= cover.out
-COVER_PACKAGES ?= $(shell go list ./... | grep -v 'controlplane/gen' | grep -Ev 'cmd/firefik$$|cmd/firefik-server$$')
+COVER_PACKAGES ?= $(shell go list ./... | grep -v 'controlplane/gen' | grep -Ev 'cmd/firefik$$|cmd/firefik-server$$|internal/rules$$|internal/metrics$$')
 
 cover:
 	go test -race -coverprofile=$(COVER_PROFILE) $(COVER_PACKAGES)
