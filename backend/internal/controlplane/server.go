@@ -10,13 +10,14 @@ import (
 )
 
 type Registry struct {
-	mu       sync.RWMutex
-	agents   map[string]*agentEntry
-	commands map[string][]Command
-	acks     map[string]CommandAck
-	logger   *slog.Logger
-	store    Store
-	logHub   *LogHub
+	mu         sync.RWMutex
+	agents     map[string]*agentEntry
+	commands   map[string][]Command
+	acks       map[string]CommandAck
+	ackWaiters map[string]chan CommandAck
+	logger     *slog.Logger
+	store      Store
+	logHub     *LogHub
 }
 
 type agentEntry struct {
@@ -32,12 +33,13 @@ func NewRegistry(logger *slog.Logger) *Registry {
 
 func NewRegistryWithStore(logger *slog.Logger, store Store) *Registry {
 	r := &Registry{
-		agents:   make(map[string]*agentEntry),
-		commands: make(map[string][]Command),
-		acks:     make(map[string]CommandAck),
-		logger:   logger,
-		store:    store,
-		logHub:   NewLogHub(),
+		agents:     make(map[string]*agentEntry),
+		commands:   make(map[string][]Command),
+		acks:       make(map[string]CommandAck),
+		ackWaiters: make(map[string]chan CommandAck),
+		logger:     logger,
+		store:      store,
+		logHub:     NewLogHub(),
 	}
 	r.hydrate(context.Background())
 	return r
@@ -139,7 +141,15 @@ func (r *Registry) takeCommands(agentID string) []Command {
 func (r *Registry) recordAck(a CommandAck) {
 	r.mu.Lock()
 	r.acks[a.ID] = a
+	w := r.ackWaiters[a.ID]
+	delete(r.ackWaiters, a.ID)
 	r.mu.Unlock()
+	if w != nil {
+		select {
+		case w <- a:
+		default:
+		}
+	}
 	if r.store != nil {
 		if err := r.store.RecordAck(context.Background(), a); err != nil && r.logger != nil {
 			r.logger.Warn("store ack failed", "error", err)
@@ -155,6 +165,44 @@ func (r *Registry) RecordSnapshot(snap AgentSnapshot) {
 	}
 	if err := r.store.RecordSnapshot(context.Background(), snap); err != nil && r.logger != nil {
 		r.logger.Warn("store snapshot failed", "error", err)
+	}
+}
+
+
+func (r *Registry) WaitForAck(ctx context.Context, commandID string, timeout time.Duration) (CommandAck, error) {
+	r.mu.Lock()
+	if a, ok := r.acks[commandID]; ok {
+		r.mu.Unlock()
+		return a, nil
+	}
+	ch := make(chan CommandAck, 1)
+	r.ackWaiters[commandID] = ch
+	r.mu.Unlock()
+
+	defer func() {
+		r.mu.Lock()
+		delete(r.ackWaiters, commandID)
+		r.mu.Unlock()
+	}()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case a := <-ch:
+		return a, nil
+	case <-timer.C:
+		return CommandAck{}, context.DeadlineExceeded
+	case <-ctx.Done():
+		return CommandAck{}, ctx.Err()
+	}
+}
+
+func (r *Registry) RecordProposals(items []AutogenProposal) {
+	if len(items) == 0 || r.store == nil {
+		return
+	}
+	if err := r.store.RecordProposals(context.Background(), items); err != nil && r.logger != nil {
+		r.logger.Warn("store autogen proposals failed", "error", err)
 	}
 }
 
@@ -228,6 +276,17 @@ func (s *HTTPServer) Handler() http.Handler {
 		mux.HandleFunc("/v1/agents", s.requireBearer(s.handleAgents))
 		mux.HandleFunc("/v1/agents/", s.requireBearer(s.handleAgent))
 		mux.HandleFunc("/v1/enrollment-tokens", s.requireBearer(s.handleEnrollmentTokens))
+		mux.HandleFunc("/v1/stats", s.requireBearer(s.handleFleetStats))
+		mux.HandleFunc("/v1/containers", s.requireBearer(s.handleFleetContainers))
+		mux.HandleFunc("/v1/rules", s.requireBearer(s.handleFleetRules))
+		mux.HandleFunc("/v1/audit/history", s.requireBearer(s.handleFleetAuditHistory))
+		mux.HandleFunc("/v1/policies", s.requireBearer(s.handlePoliciesIndex))
+		mux.HandleFunc("/v1/policies/", s.requireBearer(s.handlePolicy))
+		mux.HandleFunc("/v1/autogen/proposals", s.requireBearer(s.handleAutogenProposals))
+		mux.HandleFunc("/v1/autogen/proposals/", s.requireBearer(s.handleAutogenAction))
+		if s.Registry.LogHub() != nil {
+			mux.HandleFunc("/v1/logs", s.requireBearer(s.handleFleetLogsWS))
+		}
 	}
 	return mux
 }

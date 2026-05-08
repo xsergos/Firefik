@@ -75,7 +75,18 @@ type Store interface {
 	RecordCertRenew(ctx context.Context, serial, agentID string, at time.Time) error
 	LastCertRenew(ctx context.Context, serial string) (time.Time, bool, error)
 	PruneCertRenewHistory(ctx context.Context, serials []string) error
+	RecordProposals(ctx context.Context, items []AutogenProposal) error
+	ListProposals(ctx context.Context, agentID string) ([]AutogenProposal, error)
+	DeleteProposal(ctx context.Context, agentID, containerID string) error
+	ListAuditEvents(ctx context.Context, agentID string, limit int) ([]AuditRecord, error)
 	Close() error
+}
+
+type AuditRecord struct {
+	AgentID string
+	Kind    string
+	Payload map[string]any
+	At      time.Time
 }
 
 type sqliteStore struct {
@@ -481,13 +492,26 @@ func (s *sqliteStore) ListPolicyVersions(ctx context.Context, name string, limit
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.QueryContext(ctx, `
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if name == "" {
+		rows, err = s.db.QueryContext(ctx, `
+        SELECT sha, name, dsl, COALESCE(author,''), COALESCE(comment,''), committed_at
+          FROM policy_versions
+         ORDER BY committed_at DESC
+         LIMIT ?
+    `, limit)
+	} else {
+		rows, err = s.db.QueryContext(ctx, `
         SELECT sha, name, dsl, COALESCE(author,''), COALESCE(comment,''), committed_at
           FROM policy_versions
          WHERE name = ?
          ORDER BY committed_at DESC
          LIMIT ?
     `, name, limit)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -727,6 +751,137 @@ func (s *sqliteStore) PruneCertRenewHistory(ctx context.Context, serials []strin
 	return tx.Commit()
 }
 
+
+func (s *sqliteStore) RecordProposals(ctx context.Context, items []AutogenProposal) error {
+	if len(items) == 0 {
+		return nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	stmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO autogen_proposals (agent_id, container_id, ports_json, peers_json, observed_for, confidence, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(agent_id, container_id) DO UPDATE SET
+		   ports_json   = excluded.ports_json,
+		   peers_json   = excluded.peers_json,
+		   observed_for = excluded.observed_for,
+		   confidence   = excluded.confidence,
+		   updated_at   = excluded.updated_at`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, p := range items {
+		ports, err := json.Marshal(p.Ports)
+		if err != nil {
+			return err
+		}
+		peers, err := json.Marshal(p.Peers)
+		if err != nil {
+			return err
+		}
+		ts := p.UpdatedAt
+		if ts.IsZero() {
+			ts = time.Now().UTC()
+		}
+		if _, err := stmt.ExecContext(ctx,
+			p.AgentID, p.ContainerID, string(ports), string(peers),
+			p.ObservedFor, p.Confidence, ts.UnixNano(),
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *sqliteStore) ListProposals(ctx context.Context, agentID string) ([]AutogenProposal, error) {
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if agentID == "" {
+		rows, err = s.db.QueryContext(ctx,
+			`SELECT agent_id, container_id, ports_json, peers_json, observed_for, confidence, updated_at
+			 FROM autogen_proposals ORDER BY agent_id, container_id`)
+	} else {
+		rows, err = s.db.QueryContext(ctx,
+			`SELECT agent_id, container_id, ports_json, peers_json, observed_for, confidence, updated_at
+			 FROM autogen_proposals WHERE agent_id = ? ORDER BY container_id`,
+			agentID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AutogenProposal
+	for rows.Next() {
+		var p AutogenProposal
+		var portsJSON, peersJSON string
+		var ts int64
+		if err := rows.Scan(&p.AgentID, &p.ContainerID, &portsJSON, &peersJSON, &p.ObservedFor, &p.Confidence, &ts); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(portsJSON), &p.Ports)
+		_ = json.Unmarshal([]byte(peersJSON), &p.Peers)
+		p.UpdatedAt = time.Unix(0, ts).UTC()
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (s *sqliteStore) DeleteProposal(ctx context.Context, agentID, containerID string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM autogen_proposals WHERE agent_id = ? AND container_id = ?`,
+		agentID, containerID)
+	return err
+}
+
+func (s *sqliteStore) ListAuditEvents(ctx context.Context, agentID string, limit int) ([]AuditRecord, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if agentID == "" {
+		rows, err = s.db.QueryContext(ctx,
+			`SELECT agent_id, kind, payload_json, at FROM audit_events ORDER BY at DESC LIMIT ?`, limit)
+	} else {
+		rows, err = s.db.QueryContext(ctx,
+			`SELECT agent_id, kind, payload_json, at FROM audit_events WHERE agent_id = ? ORDER BY at DESC LIMIT ?`,
+			agentID, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AuditRecord
+	for rows.Next() {
+		var rec AuditRecord
+		var agent sql.NullString
+		var kind sql.NullString
+		var payload sql.NullString
+		if err := rows.Scan(&agent, &kind, &payload, &rec.At); err != nil {
+			return nil, err
+		}
+		if agent.Valid {
+			rec.AgentID = agent.String
+		}
+		if kind.Valid {
+			rec.Kind = kind.String
+		}
+		if payload.Valid && payload.String != "" {
+			_ = json.Unmarshal([]byte(payload.String), &rec.Payload)
+		}
+		out = append(out, rec)
+	}
+	return out, rows.Err()
+}
+
 func (s *sqliteStore) Close() error { return s.db.Close() }
 
 type memStore struct {
@@ -740,6 +895,8 @@ type memStore struct {
 	snapshots   map[string]AgentSnapshot
 	enrollments map[string]EnrollmentToken
 	renewals    map[string]memRenewRow
+	proposals   map[string]map[string]AutogenProposal
+	auditLog    []AuditRecord
 }
 
 func NewMemoryStore() Store {
@@ -753,6 +910,7 @@ func NewMemoryStore() Store {
 		snapshots:   map[string]AgentSnapshot{},
 		enrollments: map[string]EnrollmentToken{},
 		renewals:    map[string]memRenewRow{},
+		proposals:   map[string]map[string]AutogenProposal{},
 	}
 }
 
@@ -802,7 +960,88 @@ func (m *memStore) RecordAudit(_ context.Context, agentID, kind string, payload 
 		rec.EventCount++
 		m.agents[agentID] = rec
 	}
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+	m.auditLog = append(m.auditLog, AuditRecord{AgentID: agentID, Kind: kind, Payload: payload, At: at})
 	return nil
+}
+
+func (m *memStore) RecordProposals(_ context.Context, items []AutogenProposal) error {
+	if len(items) == 0 {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, p := range items {
+		if p.AgentID == "" || p.ContainerID == "" {
+			continue
+		}
+		bucket := m.proposals[p.AgentID]
+		if bucket == nil {
+			bucket = map[string]AutogenProposal{}
+			m.proposals[p.AgentID] = bucket
+		}
+		if p.UpdatedAt.IsZero() {
+			p.UpdatedAt = time.Now().UTC()
+		}
+		bucket[p.ContainerID] = p
+	}
+	return nil
+}
+
+func (m *memStore) ListProposals(_ context.Context, agentID string) ([]AutogenProposal, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []AutogenProposal
+	if agentID != "" {
+		for _, p := range m.proposals[agentID] {
+			out = append(out, p)
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].ContainerID < out[j].ContainerID })
+		return out, nil
+	}
+	for _, bucket := range m.proposals {
+		for _, p := range bucket {
+			out = append(out, p)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].AgentID != out[j].AgentID {
+			return out[i].AgentID < out[j].AgentID
+		}
+		return out[i].ContainerID < out[j].ContainerID
+	})
+	return out, nil
+}
+
+func (m *memStore) DeleteProposal(_ context.Context, agentID, containerID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if bucket := m.proposals[agentID]; bucket != nil {
+		delete(bucket, containerID)
+	}
+	return nil
+}
+
+func (m *memStore) ListAuditEvents(_ context.Context, agentID string, limit int) ([]AuditRecord, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var matches []AuditRecord
+	for i := len(m.auditLog) - 1; i >= 0; i-- {
+		rec := m.auditLog[i]
+		if agentID != "" && rec.AgentID != agentID {
+			continue
+		}
+		matches = append(matches, rec)
+		if len(matches) >= limit {
+			break
+		}
+	}
+	return matches, nil
 }
 func (m *memStore) EnqueueCommand(_ context.Context, agentID string, cmd Command) error {
 	if cmd.ID == "" {
@@ -882,7 +1121,7 @@ func (m *memStore) ListPolicyVersions(_ context.Context, name string, limit int)
 	defer m.mu.Unlock()
 	var out []PolicyVersion
 	for _, pv := range m.policies {
-		if pv.Name == name {
+		if name == "" || pv.Name == name {
 			out = append(out, pv)
 		}
 	}

@@ -406,9 +406,20 @@ func run(logger *slog.Logger) error {
 			HeartbeatInterval: time.Duration(cfg.ControlPlaneHeartbeatS) * time.Second,
 		}
 		source := &engineSnapshotSource{engine: engine, docker: dockerClient}
-		dispatcher := &engineDispatcher{engine: engine, auditLog: auditLogger, logger: logger}
+		dispatcher := &engineDispatcher{
+			engine:   engine,
+			docker:   dockerClient,
+			cfg:      cfg,
+			traffic:  trafficStore,
+			observer: observer,
+			auditLog: auditLogger,
+			logger:   logger,
+		}
 		bridge := newCPLogBridge(hub)
 		loop := controlplane.NewAgentLoop(loopCfg, identity, source, dispatcher, logger).WithLogSource(bridge)
+		if observer != nil {
+			loop = loop.WithProposalSource(&autogenProposalAdapter{observer: observer, cfg: cfg})
+		}
 		logger.Info("control-plane agent enabled",
 			"grpc", cfg.ControlPlaneGRPC,
 			"mtls", cfg.ControlPlaneClientCert != "",
@@ -595,6 +606,10 @@ func (s *engineSnapshotSource) Snapshot(ctx context.Context, id controlplane.Age
 
 type engineDispatcher struct {
 	engine   *rules.Engine
+	docker   rules.DockerReader
+	cfg      *config.Config
+	traffic  *api.TrafficStore
+	observer *autogen.Observer
 	auditLog *audit.Logger
 	logger   *slog.Logger
 }
@@ -619,6 +634,27 @@ func (d *engineDispatcher) Dispatch(ctx context.Context, cmd controlplane.Comman
 		err = d.engine.Reconcile(ctx, audit.SourceConfigReload)
 	case controlplane.CommandTokenRotate:
 		err = fmt.Errorf("token-rotate is operator-driven via FIREFIK_API_TOKEN_FILE, not control-plane commands")
+	case controlplane.CommandStatsCollect:
+		payload, statsErr := d.collectStats(ctx)
+		if statsErr != nil {
+			err = statsErr
+			break
+		}
+		ack.ResultPayload = payload
+	case controlplane.CommandAutogenApprove:
+		payload, autoErr := d.autogenApprove(ctx, cmd)
+		if autoErr != nil {
+			err = autoErr
+			break
+		}
+		ack.ResultPayload = payload
+	case controlplane.CommandAutogenReject:
+		payload, autoErr := d.autogenReject(ctx, cmd)
+		if autoErr != nil {
+			err = autoErr
+			break
+		}
+		ack.ResultPayload = payload
 	default:
 		err = fmt.Errorf("unknown command kind %q", cmd.Kind)
 	}

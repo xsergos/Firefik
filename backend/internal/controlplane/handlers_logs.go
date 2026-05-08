@@ -20,6 +20,15 @@ const (
 	logShutdownGrace = 200 * time.Millisecond
 )
 
+func (s *HTTPServer) handleFleetLogsWS(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	agentID := r.URL.Query().Get("agent_id")
+	s.streamLogs(w, r, agentID)
+}
+
 func (s *HTTPServer) streamLogs(w http.ResponseWriter, r *http.Request, agentID string) {
 	if s.Registry == nil || s.Registry.LogHub() == nil {
 		http.Error(w, "log hub unavailable", http.StatusServiceUnavailable)

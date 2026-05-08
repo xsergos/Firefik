@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "react-router-dom";
 import {
   fetchAgentSnapshot,
+  fetchAgentStats,
   sendAgentCommand,
   type FleetCommandAction,
 } from "@/lib/fleetApi";
@@ -185,6 +186,11 @@ export default function AgentDetailPage() {
           </div>
 
           <div>
+            <h2 className="text-lg font-semibold pt-4 pb-2">Live stats</h2>
+            <AgentLiveStats agentID={id} />
+          </div>
+
+          <div>
             <h2 className="text-lg font-semibold pt-4 pb-2">Live logs</h2>
             <AgentLogsPanel agentID={id} />
           </div>
@@ -201,6 +207,37 @@ function Field({ label, value }: { label: string; value: string }) {
     <div>
       <div className="text-xs text-muted-foreground uppercase tracking-wide">{label}</div>
       <div className="text-sm">{value || "—"}</div>
+    </div>
+  );
+}
+
+function AgentLiveStats({ agentID }: { agentID: string }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["agent-live-stats", agentID],
+    queryFn: () => fetchAgentStats(agentID),
+    enabled: agentID !== "",
+    refetchInterval: 10_000,
+    retry: false,
+  });
+  if (isLoading) return <p className="text-muted-foreground text-sm">Pulling stats…</p>;
+  if (isError) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Stats pull timed out — agent must be online and reachable on the gRPC stream.
+      </p>
+    );
+  }
+  const c = data?.containers ?? { total: 0, running: 0, enabled: 0 };
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+      <Field label="Containers (total)" value={String(c.total)} />
+      <Field label="Running" value={String(c.running)} />
+      <Field label="Firewall enabled" value={String(c.enabled)} />
+      {data?.at && (
+        <div className="col-span-full text-xs text-muted-foreground">
+          Pulled at {new Date(data.at).toLocaleTimeString()}
+        </div>
+      )}
     </div>
   );
 }

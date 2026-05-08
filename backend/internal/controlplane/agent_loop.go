@@ -29,13 +29,19 @@ type LogForwardSource interface {
 	Logs() <-chan LogLine
 }
 
+
+type AutogenProposalSource interface {
+	Proposals(ctx context.Context) []AutogenProposal
+}
+
 type AgentLoop struct {
-	cfg        AgentLoopConfig
-	identity   AgentIdentity
-	source     AgentSource
-	logSource  LogForwardSource
-	dispatcher CommandDispatcher
-	logger     *slog.Logger
+	cfg            AgentLoopConfig
+	identity       AgentIdentity
+	source         AgentSource
+	logSource      LogForwardSource
+	proposalSource AutogenProposalSource
+	dispatcher     CommandDispatcher
+	logger         *slog.Logger
 }
 
 func NewAgentLoop(
@@ -62,6 +68,12 @@ func NewAgentLoop(
 
 func (l *AgentLoop) WithLogSource(s LogForwardSource) *AgentLoop {
 	l.logSource = s
+	return l
+}
+
+
+func (l *AgentLoop) WithProposalSource(s AutogenProposalSource) *AgentLoop {
+	l.proposalSource = s
 	return l
 }
 
@@ -130,10 +142,15 @@ func (l *AgentLoop) snapshotTicker(ctx context.Context, grpcClient *GRPCClient) 
 				if l.logger != nil {
 					l.logger.Debug("snapshot build failed", "error", err)
 				}
-				continue
-			}
-			if err := grpcClient.SendSnapshot(snap); err != nil && l.logger != nil {
+			} else if err := grpcClient.SendSnapshot(snap); err != nil && l.logger != nil {
 				l.logger.Debug("snapshot send", "error", err)
+			}
+			if l.proposalSource != nil {
+				if items := l.proposalSource.Proposals(ctx); len(items) > 0 {
+					if err := grpcClient.SendAutogenProposals(items); err != nil && l.logger != nil {
+						l.logger.Debug("autogen proposals send", "error", err)
+					}
+				}
 			}
 
 		case <-hbTicker.C:

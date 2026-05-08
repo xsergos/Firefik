@@ -61,21 +61,39 @@ message LogLine {
   map<string, string>       fields = 6;
 }
 
+message AutogenProposal {
+  string                    container_id = 1;
+  repeated uint32           ports        = 2;
+  repeated string           peers        = 3;
+  string                    observed_for = 4;
+  string                    confidence   = 5;
+}
+
+message AutogenProposals {
+  AgentIdentity            agent     = 1;
+  repeated AutogenProposal proposals = 2;
+  google.protobuf.Timestamp at       = 3;
+}
+
 message AgentEvent {
   oneof kind {
-    AgentSnapshot snapshot = 1;
-    AuditEvent    audit    = 2;
-    Heartbeat     heartbeat = 3;
-    LogLine       log      = 4;
+    AgentSnapshot    snapshot         = 1;
+    AuditEvent       audit            = 2;
+    Heartbeat        heartbeat        = 3;
+    LogLine          log              = 4;
+    AutogenProposals autogen_proposals = 5;
   }
 }
 
 enum CommandKind {
-  COMMAND_KIND_UNSPECIFIED  = 0;
-  COMMAND_KIND_APPLY        = 1;
-  COMMAND_KIND_DISABLE      = 2;
-  COMMAND_KIND_RECONCILE    = 3;
-  COMMAND_KIND_TOKEN_ROTATE = 4;
+  COMMAND_KIND_UNSPECIFIED      = 0;
+  COMMAND_KIND_APPLY            = 1;
+  COMMAND_KIND_DISABLE          = 2;
+  COMMAND_KIND_RECONCILE        = 3;
+  COMMAND_KIND_TOKEN_ROTATE     = 4;
+  COMMAND_KIND_STATS_COLLECT    = 5;
+  COMMAND_KIND_AUTOGEN_APPROVE  = 6;
+  COMMAND_KIND_AUTOGEN_REJECT   = 7;
 }
 
 message ServerCommand {
@@ -87,11 +105,12 @@ message ServerCommand {
 }
 
 message CommandAck {
-  string                     id           = 1;
-  string                     agent_id     = 2;
-  bool                       success      = 3;
-  string                     error        = 4;
-  google.protobuf.Timestamp  completed_at = 5;
+  string                     id             = 1;
+  string                     agent_id       = 2;
+  bool                       success        = 3;
+  string                     error          = 4;
+  google.protobuf.Timestamp  completed_at   = 5;
+  google.protobuf.Struct     result_payload = 6;
 }
 
 message AckReply {}

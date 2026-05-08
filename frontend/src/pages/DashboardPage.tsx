@@ -11,8 +11,11 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchStats } from "@/lib/api";
+import { fetchFleetStats } from "@/lib/fleetApi";
+import { isPanelMode } from "@/lib/panelMode";
 import { queryKeys } from "@/lib/queryKeys";
 import type { StatsResponse } from "@/types/api";
+import type { FleetStats } from "@/lib/fleetApi";
 import { TableLoading, TableError } from "@/components/shared/TableStates";
 
 function useStats() {
@@ -44,7 +47,47 @@ function downsample(points: StatsResponse["traffic"]): StatsResponse["traffic"] 
   return out;
 }
 
+function useFleetStats() {
+  return useQuery<FleetStats>({
+    queryKey: ["fleet-stats"],
+    queryFn: () => fetchFleetStats(),
+    refetchInterval: 15_000,
+  });
+}
+
+function FleetDashboard() {
+  const { data, isLoading, isError } = useFleetStats();
+  if (isError) {
+    return <TableError label="Failed to load fleet stats. Make sure the control plane is running." />;
+  }
+  const a = data?.agents ?? { total: 0, healthy: 0, stale: 0, dead: 0, unknown: 0 };
+  const c = data?.containers ?? { total: 0, running: 0, enabled: 0 };
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Fleet dashboard</h1>
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-4">
+        <StatCard title="Agents (total)" value={isLoading ? "…" : String(a.total)} />
+        <StatCard title="Healthy" value={isLoading ? "…" : String(a.healthy)} />
+        <StatCard title="Stale" value={isLoading ? "…" : String(a.stale)} />
+        <StatCard title="Dead" value={isLoading ? "…" : String(a.dead)} />
+      </div>
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <StatCard title="Containers (total)" value={isLoading ? "…" : String(c.total)} />
+        <StatCard title="Running" value={isLoading ? "…" : String(c.running)} />
+        <StatCard title="Firewall enabled" value={isLoading ? "…" : String(c.enabled)} />
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
+  if (isPanelMode) {
+    return <FleetDashboard />;
+  }
+  return <SingleAgentDashboard />;
+}
+
+function SingleAgentDashboard() {
   const { data, isLoading, isError } = useStats();
 
   const traffic = useMemo(

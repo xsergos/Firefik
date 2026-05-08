@@ -53,13 +53,26 @@ type LogLine struct {
 	Fields map[string]string `json:"fields,omitempty"`
 }
 
+type AutogenProposal struct {
+	AgentID     string   `json:"agent_id"`
+	ContainerID string   `json:"container_id"`
+	Ports       []uint32 `json:"ports"`
+	Peers       []string `json:"peers"`
+	ObservedFor string   `json:"observed_for,omitempty"`
+	Confidence  string   `json:"confidence,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type CommandKind string
 
 const (
-	CommandApply       CommandKind = "apply"
-	CommandDisable     CommandKind = "disable"
-	CommandReconcile   CommandKind = "reconcile"
-	CommandTokenRotate CommandKind = "token_rotate"
+	CommandApply          CommandKind = "apply"
+	CommandDisable        CommandKind = "disable"
+	CommandReconcile      CommandKind = "reconcile"
+	CommandTokenRotate    CommandKind = "token_rotate"
+	CommandStatsCollect   CommandKind = "stats_collect"
+	CommandAutogenApprove CommandKind = "autogen_approve"
+	CommandAutogenReject  CommandKind = "autogen_reject"
 )
 
 type Command struct {
@@ -71,11 +84,12 @@ type Command struct {
 }
 
 type CommandAck struct {
-	ID          string    `json:"id"`
-	AgentID     string    `json:"agent_id"`
-	Success     bool      `json:"success"`
-	Error       string    `json:"error,omitempty"`
-	CompletedAt time.Time `json:"completed_at"`
+	ID            string         `json:"id"`
+	AgentID       string         `json:"agent_id"`
+	Success       bool           `json:"success"`
+	Error         string         `json:"error,omitempty"`
+	CompletedAt   time.Time      `json:"completed_at"`
+	ResultPayload map[string]any `json:"result_payload,omitempty"`
 }
 
 type PolicyTemplate struct {

@@ -125,3 +125,51 @@ export function createEnrollmentToken(
 ): Promise<EnrollmentToken> {
   return postJSON("/api/enrollment-tokens", { agent_id: agentID, ttl_seconds: ttlSeconds }, enrollmentTokenSchema);
 }
+
+const fleetStatsSchema = z.object({
+  agents: z.object({
+    total: z.number(),
+    healthy: z.number(),
+    stale: z.number(),
+    dead: z.number(),
+    unknown: z.number(),
+  }),
+  containers: z.object({
+    total: z.number(),
+    running: z.number(),
+    enabled: z.number(),
+  }),
+});
+
+export type FleetStats = z.infer<typeof fleetStatsSchema>;
+
+export function fetchFleetStats(): Promise<FleetStats> {
+  return getJSON("/api/stats", fleetStatsSchema);
+}
+
+const agentLiveStatsSchema = z.object({
+  containers: z
+    .object({
+      total: z.number(),
+      running: z.number(),
+      enabled: z.number(),
+    })
+    .optional(),
+  traffic: z
+    .array(
+      z.object({
+        ts: z.string(),
+        accepted: z.number(),
+        dropped: z.number(),
+      }),
+    )
+    .optional(),
+  rules_active_containers: z.number().optional(),
+  at: z.string().optional(),
+});
+
+export type AgentLiveStats = z.infer<typeof agentLiveStatsSchema>;
+
+export function fetchAgentStats(id: string): Promise<AgentLiveStats> {
+  return getJSON(`/api/agents/${encodeURIComponent(id)}/stats`, agentLiveStatsSchema);
+}

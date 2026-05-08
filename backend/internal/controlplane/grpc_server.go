@@ -178,6 +178,12 @@ func (s *GRPCServer) handleEvent(ev *pb.AgentEvent) {
 		}
 		s.Registry.upsertAgent(toNativeIdentity(k.Log.Agent))
 		s.Registry.PublishLog(toNativeLogLine(k.Log))
+	case *pb.AgentEvent_AutogenProposals:
+		if k.AutogenProposals == nil || k.AutogenProposals.Agent == nil {
+			return
+		}
+		s.Registry.upsertAgent(toNativeIdentity(k.AutogenProposals.Agent))
+		s.Registry.RecordProposals(toNativeAutogenProposals(k.AutogenProposals))
 	}
 }
 
@@ -278,6 +284,9 @@ func toNativeAck(in *pb.CommandAck) CommandAck {
 	if in.CompletedAt != nil {
 		out.CompletedAt = in.CompletedAt.AsTime()
 	}
+	if in.ResultPayload != nil {
+		out.ResultPayload = in.ResultPayload.AsMap()
+	}
 	return out
 }
 
@@ -306,6 +315,12 @@ func pbKindFromString(s string) pb.CommandKind {
 		return pb.CommandKind_COMMAND_KIND_RECONCILE
 	case string(CommandTokenRotate):
 		return pb.CommandKind_COMMAND_KIND_TOKEN_ROTATE
+	case string(CommandStatsCollect):
+		return pb.CommandKind_COMMAND_KIND_STATS_COLLECT
+	case string(CommandAutogenApprove):
+		return pb.CommandKind_COMMAND_KIND_AUTOGEN_APPROVE
+	case string(CommandAutogenReject):
+		return pb.CommandKind_COMMAND_KIND_AUTOGEN_REJECT
 	default:
 		return pb.CommandKind_COMMAND_KIND_UNSPECIFIED
 	}
@@ -318,6 +333,33 @@ func copyLabels(in map[string]string) map[string]string {
 	out := make(map[string]string, len(in))
 	for k, v := range in {
 		out[k] = v
+	}
+	return out
+}
+
+
+func toNativeAutogenProposals(in *pb.AutogenProposals) []AutogenProposal {
+	if in == nil || in.Agent == nil {
+		return nil
+	}
+	at := time.Now().UTC()
+	if in.At != nil {
+		at = in.At.AsTime()
+	}
+	out := make([]AutogenProposal, 0, len(in.Proposals))
+	for _, p := range in.Proposals {
+		if p == nil {
+			continue
+		}
+		out = append(out, AutogenProposal{
+			AgentID:     in.Agent.InstanceId,
+			ContainerID: p.ContainerId,
+			Ports:       append([]uint32(nil), p.Ports...),
+			Peers:       append([]string(nil), p.Peers...),
+			ObservedFor: p.ObservedFor,
+			Confidence:  p.Confidence,
+			UpdatedAt:   at,
+		})
 	}
 	return out
 }

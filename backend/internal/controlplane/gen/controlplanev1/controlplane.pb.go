@@ -26,11 +26,14 @@ const (
 type CommandKind int32
 
 const (
-	CommandKind_COMMAND_KIND_UNSPECIFIED  CommandKind = 0
-	CommandKind_COMMAND_KIND_APPLY        CommandKind = 1
-	CommandKind_COMMAND_KIND_DISABLE      CommandKind = 2
-	CommandKind_COMMAND_KIND_RECONCILE    CommandKind = 3
-	CommandKind_COMMAND_KIND_TOKEN_ROTATE CommandKind = 4
+	CommandKind_COMMAND_KIND_UNSPECIFIED     CommandKind = 0
+	CommandKind_COMMAND_KIND_APPLY           CommandKind = 1
+	CommandKind_COMMAND_KIND_DISABLE         CommandKind = 2
+	CommandKind_COMMAND_KIND_RECONCILE       CommandKind = 3
+	CommandKind_COMMAND_KIND_TOKEN_ROTATE    CommandKind = 4
+	CommandKind_COMMAND_KIND_STATS_COLLECT   CommandKind = 5
+	CommandKind_COMMAND_KIND_AUTOGEN_APPROVE CommandKind = 6
+	CommandKind_COMMAND_KIND_AUTOGEN_REJECT  CommandKind = 7
 )
 
 // Enum value maps for CommandKind.
@@ -41,13 +44,19 @@ var (
 		2: "COMMAND_KIND_DISABLE",
 		3: "COMMAND_KIND_RECONCILE",
 		4: "COMMAND_KIND_TOKEN_ROTATE",
+		5: "COMMAND_KIND_STATS_COLLECT",
+		6: "COMMAND_KIND_AUTOGEN_APPROVE",
+		7: "COMMAND_KIND_AUTOGEN_REJECT",
 	}
 	CommandKind_value = map[string]int32{
-		"COMMAND_KIND_UNSPECIFIED":  0,
-		"COMMAND_KIND_APPLY":        1,
-		"COMMAND_KIND_DISABLE":      2,
-		"COMMAND_KIND_RECONCILE":    3,
-		"COMMAND_KIND_TOKEN_ROTATE": 4,
+		"COMMAND_KIND_UNSPECIFIED":     0,
+		"COMMAND_KIND_APPLY":           1,
+		"COMMAND_KIND_DISABLE":         2,
+		"COMMAND_KIND_RECONCILE":       3,
+		"COMMAND_KIND_TOKEN_ROTATE":    4,
+		"COMMAND_KIND_STATS_COLLECT":   5,
+		"COMMAND_KIND_AUTOGEN_APPROVE": 6,
+		"COMMAND_KIND_AUTOGEN_REJECT":  7,
 	}
 )
 
@@ -606,6 +615,142 @@ func (x *LogLine) GetFields() map[string]string {
 	return nil
 }
 
+type AutogenProposal struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContainerId   string                 `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	Ports         []uint32               `protobuf:"varint,2,rep,packed,name=ports,proto3" json:"ports,omitempty"`
+	Peers         []string               `protobuf:"bytes,3,rep,name=peers,proto3" json:"peers,omitempty"`
+	ObservedFor   string                 `protobuf:"bytes,4,opt,name=observed_for,json=observedFor,proto3" json:"observed_for,omitempty"`
+	Confidence    string                 `protobuf:"bytes,5,opt,name=confidence,proto3" json:"confidence,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AutogenProposal) Reset() {
+	*x = AutogenProposal{}
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutogenProposal) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutogenProposal) ProtoMessage() {}
+
+func (x *AutogenProposal) ProtoReflect() protoreflect.Message {
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutogenProposal.ProtoReflect.Descriptor instead.
+func (*AutogenProposal) Descriptor() ([]byte, []int) {
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *AutogenProposal) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *AutogenProposal) GetPorts() []uint32 {
+	if x != nil {
+		return x.Ports
+	}
+	return nil
+}
+
+func (x *AutogenProposal) GetPeers() []string {
+	if x != nil {
+		return x.Peers
+	}
+	return nil
+}
+
+func (x *AutogenProposal) GetObservedFor() string {
+	if x != nil {
+		return x.ObservedFor
+	}
+	return ""
+}
+
+func (x *AutogenProposal) GetConfidence() string {
+	if x != nil {
+		return x.Confidence
+	}
+	return ""
+}
+
+type AutogenProposals struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Agent         *AgentIdentity         `protobuf:"bytes,1,opt,name=agent,proto3" json:"agent,omitempty"`
+	Proposals     []*AutogenProposal     `protobuf:"bytes,2,rep,name=proposals,proto3" json:"proposals,omitempty"`
+	At            *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=at,proto3" json:"at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AutogenProposals) Reset() {
+	*x = AutogenProposals{}
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutogenProposals) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutogenProposals) ProtoMessage() {}
+
+func (x *AutogenProposals) ProtoReflect() protoreflect.Message {
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutogenProposals.ProtoReflect.Descriptor instead.
+func (*AutogenProposals) Descriptor() ([]byte, []int) {
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *AutogenProposals) GetAgent() *AgentIdentity {
+	if x != nil {
+		return x.Agent
+	}
+	return nil
+}
+
+func (x *AutogenProposals) GetProposals() []*AutogenProposal {
+	if x != nil {
+		return x.Proposals
+	}
+	return nil
+}
+
+func (x *AutogenProposals) GetAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.At
+	}
+	return nil
+}
+
 type AgentEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Kind:
@@ -614,6 +759,7 @@ type AgentEvent struct {
 	//	*AgentEvent_Audit
 	//	*AgentEvent_Heartbeat
 	//	*AgentEvent_Log
+	//	*AgentEvent_AutogenProposals
 	Kind          isAgentEvent_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -621,7 +767,7 @@ type AgentEvent struct {
 
 func (x *AgentEvent) Reset() {
 	*x = AgentEvent{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[8]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -633,7 +779,7 @@ func (x *AgentEvent) String() string {
 func (*AgentEvent) ProtoMessage() {}
 
 func (x *AgentEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[8]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -646,7 +792,7 @@ func (x *AgentEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentEvent.ProtoReflect.Descriptor instead.
 func (*AgentEvent) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{8}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AgentEvent) GetKind() isAgentEvent_Kind {
@@ -692,6 +838,15 @@ func (x *AgentEvent) GetLog() *LogLine {
 	return nil
 }
 
+func (x *AgentEvent) GetAutogenProposals() *AutogenProposals {
+	if x != nil {
+		if x, ok := x.Kind.(*AgentEvent_AutogenProposals); ok {
+			return x.AutogenProposals
+		}
+	}
+	return nil
+}
+
 type isAgentEvent_Kind interface {
 	isAgentEvent_Kind()
 }
@@ -712,6 +867,10 @@ type AgentEvent_Log struct {
 	Log *LogLine `protobuf:"bytes,4,opt,name=log,proto3,oneof"`
 }
 
+type AgentEvent_AutogenProposals struct {
+	AutogenProposals *AutogenProposals `protobuf:"bytes,5,opt,name=autogen_proposals,json=autogenProposals,proto3,oneof"`
+}
+
 func (*AgentEvent_Snapshot) isAgentEvent_Kind() {}
 
 func (*AgentEvent_Audit) isAgentEvent_Kind() {}
@@ -719,6 +878,8 @@ func (*AgentEvent_Audit) isAgentEvent_Kind() {}
 func (*AgentEvent_Heartbeat) isAgentEvent_Kind() {}
 
 func (*AgentEvent_Log) isAgentEvent_Kind() {}
+
+func (*AgentEvent_AutogenProposals) isAgentEvent_Kind() {}
 
 type ServerCommand struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -733,7 +894,7 @@ type ServerCommand struct {
 
 func (x *ServerCommand) Reset() {
 	*x = ServerCommand{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[9]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -745,7 +906,7 @@ func (x *ServerCommand) String() string {
 func (*ServerCommand) ProtoMessage() {}
 
 func (x *ServerCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[9]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -758,7 +919,7 @@ func (x *ServerCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerCommand.ProtoReflect.Descriptor instead.
 func (*ServerCommand) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{9}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ServerCommand) GetId() string {
@@ -803,13 +964,14 @@ type CommandAck struct {
 	Success       bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
 	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
 	CompletedAt   *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=completed_at,json=completedAt,proto3" json:"completed_at,omitempty"`
+	ResultPayload *structpb.Struct       `protobuf:"bytes,6,opt,name=result_payload,json=resultPayload,proto3" json:"result_payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CommandAck) Reset() {
 	*x = CommandAck{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[10]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -821,7 +983,7 @@ func (x *CommandAck) String() string {
 func (*CommandAck) ProtoMessage() {}
 
 func (x *CommandAck) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[10]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -834,7 +996,7 @@ func (x *CommandAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommandAck.ProtoReflect.Descriptor instead.
 func (*CommandAck) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{10}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CommandAck) GetId() string {
@@ -872,6 +1034,13 @@ func (x *CommandAck) GetCompletedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *CommandAck) GetResultPayload() *structpb.Struct {
+	if x != nil {
+		return x.ResultPayload
+	}
+	return nil
+}
+
 type AckReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -880,7 +1049,7 @@ type AckReply struct {
 
 func (x *AckReply) Reset() {
 	*x = AckReply{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[11]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -892,7 +1061,7 @@ func (x *AckReply) String() string {
 func (*AckReply) ProtoMessage() {}
 
 func (x *AckReply) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[11]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -905,7 +1074,7 @@ func (x *AckReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AckReply.ProtoReflect.Descriptor instead.
 func (*AckReply) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{11}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{13}
 }
 
 type PolicyTemplate struct {
@@ -923,7 +1092,7 @@ type PolicyTemplate struct {
 
 func (x *PolicyTemplate) Reset() {
 	*x = PolicyTemplate{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[12]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -935,7 +1104,7 @@ func (x *PolicyTemplate) String() string {
 func (*PolicyTemplate) ProtoMessage() {}
 
 func (x *PolicyTemplate) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[12]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -948,7 +1117,7 @@ func (x *PolicyTemplate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyTemplate.ProtoReflect.Descriptor instead.
 func (*PolicyTemplate) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{12}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *PolicyTemplate) GetName() string {
@@ -1008,7 +1177,7 @@ type ListTemplatesRequest struct {
 
 func (x *ListTemplatesRequest) Reset() {
 	*x = ListTemplatesRequest{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[13]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1020,7 +1189,7 @@ func (x *ListTemplatesRequest) String() string {
 func (*ListTemplatesRequest) ProtoMessage() {}
 
 func (x *ListTemplatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[13]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1033,7 +1202,7 @@ func (x *ListTemplatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTemplatesRequest.ProtoReflect.Descriptor instead.
 func (*ListTemplatesRequest) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{13}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{15}
 }
 
 type ListTemplatesResponse struct {
@@ -1045,7 +1214,7 @@ type ListTemplatesResponse struct {
 
 func (x *ListTemplatesResponse) Reset() {
 	*x = ListTemplatesResponse{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[14]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1057,7 +1226,7 @@ func (x *ListTemplatesResponse) String() string {
 func (*ListTemplatesResponse) ProtoMessage() {}
 
 func (x *ListTemplatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[14]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1070,7 +1239,7 @@ func (x *ListTemplatesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTemplatesResponse.ProtoReflect.Descriptor instead.
 func (*ListTemplatesResponse) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{14}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListTemplatesResponse) GetTemplates() []*PolicyTemplate {
@@ -1089,7 +1258,7 @@ type GetTemplateRequest struct {
 
 func (x *GetTemplateRequest) Reset() {
 	*x = GetTemplateRequest{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[15]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1101,7 +1270,7 @@ func (x *GetTemplateRequest) String() string {
 func (*GetTemplateRequest) ProtoMessage() {}
 
 func (x *GetTemplateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[15]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1114,7 +1283,7 @@ func (x *GetTemplateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTemplateRequest.ProtoReflect.Descriptor instead.
 func (*GetTemplateRequest) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{15}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetTemplateRequest) GetName() string {
@@ -1133,7 +1302,7 @@ type PublishTemplateRequest struct {
 
 func (x *PublishTemplateRequest) Reset() {
 	*x = PublishTemplateRequest{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[16]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1145,7 +1314,7 @@ func (x *PublishTemplateRequest) String() string {
 func (*PublishTemplateRequest) ProtoMessage() {}
 
 func (x *PublishTemplateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[16]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1158,7 +1327,7 @@ func (x *PublishTemplateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishTemplateRequest.ProtoReflect.Descriptor instead.
 func (*PublishTemplateRequest) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{16}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *PublishTemplateRequest) GetTemplate() *PolicyTemplate {
@@ -1177,7 +1346,7 @@ type PublishTemplateResponse struct {
 
 func (x *PublishTemplateResponse) Reset() {
 	*x = PublishTemplateResponse{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[17]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1189,7 +1358,7 @@ func (x *PublishTemplateResponse) String() string {
 func (*PublishTemplateResponse) ProtoMessage() {}
 
 func (x *PublishTemplateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[17]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1202,7 +1371,7 @@ func (x *PublishTemplateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishTemplateResponse.ProtoReflect.Descriptor instead.
 func (*PublishTemplateResponse) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{17}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *PublishTemplateResponse) GetTemplate() *PolicyTemplate {
@@ -1223,7 +1392,7 @@ type RenewCertRequest struct {
 
 func (x *RenewCertRequest) Reset() {
 	*x = RenewCertRequest{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[18]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1235,7 +1404,7 @@ func (x *RenewCertRequest) String() string {
 func (*RenewCertRequest) ProtoMessage() {}
 
 func (x *RenewCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[18]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1248,7 +1417,7 @@ func (x *RenewCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewCertRequest.ProtoReflect.Descriptor instead.
 func (*RenewCertRequest) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{18}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *RenewCertRequest) GetAgentId() string {
@@ -1285,7 +1454,7 @@ type RenewCertResponse struct {
 
 func (x *RenewCertResponse) Reset() {
 	*x = RenewCertResponse{}
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[19]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1297,7 +1466,7 @@ func (x *RenewCertResponse) String() string {
 func (*RenewCertResponse) ProtoMessage() {}
 
 func (x *RenewCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_controlplane_v1_controlplane_proto_msgTypes[19]
+	mi := &file_controlplane_v1_controlplane_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1310,7 +1479,7 @@ func (x *RenewCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewCertResponse.ProtoReflect.Descriptor instead.
 func (*RenewCertResponse) Descriptor() ([]byte, []int) {
-	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{19}
+	return file_controlplane_v1_controlplane_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *RenewCertResponse) GetCertPem() []byte {
@@ -1404,27 +1573,41 @@ const file_controlplane_v1_controlplane_proto_rawDesc = "" +
 	"\x06fields\x18\x06 \x03(\v2,.firefik.controlplane.v1.LogLine.FieldsEntryR\x06fields\x1a9\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x91\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa3\x01\n" +
+	"\x0fAutogenProposal\x12!\n" +
+	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12\x14\n" +
+	"\x05ports\x18\x02 \x03(\rR\x05ports\x12\x14\n" +
+	"\x05peers\x18\x03 \x03(\tR\x05peers\x12!\n" +
+	"\fobserved_for\x18\x04 \x01(\tR\vobservedFor\x12\x1e\n" +
+	"\n" +
+	"confidence\x18\x05 \x01(\tR\n" +
+	"confidence\"\xc4\x01\n" +
+	"\x10AutogenProposals\x12<\n" +
+	"\x05agent\x18\x01 \x01(\v2&.firefik.controlplane.v1.AgentIdentityR\x05agent\x12F\n" +
+	"\tproposals\x18\x02 \x03(\v2(.firefik.controlplane.v1.AutogenProposalR\tproposals\x12*\n" +
+	"\x02at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\"\xeb\x02\n" +
 	"\n" +
 	"AgentEvent\x12D\n" +
 	"\bsnapshot\x18\x01 \x01(\v2&.firefik.controlplane.v1.AgentSnapshotH\x00R\bsnapshot\x12;\n" +
 	"\x05audit\x18\x02 \x01(\v2#.firefik.controlplane.v1.AuditEventH\x00R\x05audit\x12B\n" +
 	"\theartbeat\x18\x03 \x01(\v2\".firefik.controlplane.v1.HeartbeatH\x00R\theartbeat\x124\n" +
-	"\x03log\x18\x04 \x01(\v2 .firefik.controlplane.v1.LogLineH\x00R\x03logB\x06\n" +
+	"\x03log\x18\x04 \x01(\v2 .firefik.controlplane.v1.LogLineH\x00R\x03log\x12X\n" +
+	"\x11autogen_proposals\x18\x05 \x01(\v2).firefik.controlplane.v1.AutogenProposalsH\x00R\x10autogenProposalsB\x06\n" +
 	"\x04kind\"\xe8\x01\n" +
 	"\rServerCommand\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x128\n" +
 	"\x04kind\x18\x02 \x01(\x0e2$.firefik.controlplane.v1.CommandKindR\x04kind\x12!\n" +
 	"\fcontainer_id\x18\x03 \x01(\tR\vcontainerId\x121\n" +
 	"\apayload\x18\x04 \x01(\v2\x17.google.protobuf.StructR\apayload\x127\n" +
-	"\tissued_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\bissuedAt\"\xa6\x01\n" +
+	"\tissued_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\bissuedAt\"\xe6\x01\n" +
 	"\n" +
 	"CommandAck\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\x18\n" +
 	"\asuccess\x18\x03 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x04 \x01(\tR\x05error\x12=\n" +
-	"\fcompleted_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vcompletedAt\"\n" +
+	"\fcompleted_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vcompletedAt\x12>\n" +
+	"\x0eresult_payload\x18\x06 \x01(\v2\x17.google.protobuf.StructR\rresultPayload\"\n" +
 	"\n" +
 	"\bAckReply\"\xee\x02\n" +
 	"\x0ePolicyTemplate\x12\x12\n" +
@@ -1460,13 +1643,16 @@ const file_controlplane_v1_controlplane_proto_rawDesc = "" +
 	"\n" +
 	"bundle_pem\x18\x03 \x01(\fR\tbundlePem\x12\x16\n" +
 	"\x06serial\x18\x04 \x01(\tR\x06serial\x12!\n" +
-	"\fexpires_unix\x18\x05 \x01(\x03R\vexpiresUnix*\x98\x01\n" +
+	"\fexpires_unix\x18\x05 \x01(\x03R\vexpiresUnix*\xfb\x01\n" +
 	"\vCommandKind\x12\x1c\n" +
 	"\x18COMMAND_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12COMMAND_KIND_APPLY\x10\x01\x12\x18\n" +
 	"\x14COMMAND_KIND_DISABLE\x10\x02\x12\x1a\n" +
 	"\x16COMMAND_KIND_RECONCILE\x10\x03\x12\x1d\n" +
-	"\x19COMMAND_KIND_TOKEN_ROTATE\x10\x042\xc3\x05\n" +
+	"\x19COMMAND_KIND_TOKEN_ROTATE\x10\x04\x12\x1e\n" +
+	"\x1aCOMMAND_KIND_STATS_COLLECT\x10\x05\x12 \n" +
+	"\x1cCOMMAND_KIND_AUTOGEN_APPROVE\x10\x06\x12\x1f\n" +
+	"\x1bCOMMAND_KIND_AUTOGEN_REJECT\x10\a2\xc3\x05\n" +
 	"\fControlPlane\x12Z\n" +
 	"\bRegister\x12(.firefik.controlplane.v1.RegisterRequest\x1a$.firefik.controlplane.v1.RegisterAck\x12Y\n" +
 	"\x06Stream\x12#.firefik.controlplane.v1.AgentEvent\x1a&.firefik.controlplane.v1.ServerCommand(\x010\x01\x12M\n" +
@@ -1489,7 +1675,7 @@ func file_controlplane_v1_controlplane_proto_rawDescGZIP() []byte {
 }
 
 var file_controlplane_v1_controlplane_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_controlplane_v1_controlplane_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_controlplane_v1_controlplane_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_controlplane_v1_controlplane_proto_goTypes = []any{
 	(CommandKind)(0),                // 0: firefik.controlplane.v1.CommandKind
 	(*AgentIdentity)(nil),           // 1: firefik.controlplane.v1.AgentIdentity
@@ -1500,73 +1686,80 @@ var file_controlplane_v1_controlplane_proto_goTypes = []any{
 	(*Heartbeat)(nil),               // 6: firefik.controlplane.v1.Heartbeat
 	(*AuditEvent)(nil),              // 7: firefik.controlplane.v1.AuditEvent
 	(*LogLine)(nil),                 // 8: firefik.controlplane.v1.LogLine
-	(*AgentEvent)(nil),              // 9: firefik.controlplane.v1.AgentEvent
-	(*ServerCommand)(nil),           // 10: firefik.controlplane.v1.ServerCommand
-	(*CommandAck)(nil),              // 11: firefik.controlplane.v1.CommandAck
-	(*AckReply)(nil),                // 12: firefik.controlplane.v1.AckReply
-	(*PolicyTemplate)(nil),          // 13: firefik.controlplane.v1.PolicyTemplate
-	(*ListTemplatesRequest)(nil),    // 14: firefik.controlplane.v1.ListTemplatesRequest
-	(*ListTemplatesResponse)(nil),   // 15: firefik.controlplane.v1.ListTemplatesResponse
-	(*GetTemplateRequest)(nil),      // 16: firefik.controlplane.v1.GetTemplateRequest
-	(*PublishTemplateRequest)(nil),  // 17: firefik.controlplane.v1.PublishTemplateRequest
-	(*PublishTemplateResponse)(nil), // 18: firefik.controlplane.v1.PublishTemplateResponse
-	(*RenewCertRequest)(nil),        // 19: firefik.controlplane.v1.RenewCertRequest
-	(*RenewCertResponse)(nil),       // 20: firefik.controlplane.v1.RenewCertResponse
-	nil,                             // 21: firefik.controlplane.v1.AgentIdentity.LabelsEntry
-	nil,                             // 22: firefik.controlplane.v1.ContainerState.LabelsEntry
-	nil,                             // 23: firefik.controlplane.v1.LogLine.FieldsEntry
-	nil,                             // 24: firefik.controlplane.v1.PolicyTemplate.LabelsEntry
-	(*timestamppb.Timestamp)(nil),   // 25: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),         // 26: google.protobuf.Struct
+	(*AutogenProposal)(nil),         // 9: firefik.controlplane.v1.AutogenProposal
+	(*AutogenProposals)(nil),        // 10: firefik.controlplane.v1.AutogenProposals
+	(*AgentEvent)(nil),              // 11: firefik.controlplane.v1.AgentEvent
+	(*ServerCommand)(nil),           // 12: firefik.controlplane.v1.ServerCommand
+	(*CommandAck)(nil),              // 13: firefik.controlplane.v1.CommandAck
+	(*AckReply)(nil),                // 14: firefik.controlplane.v1.AckReply
+	(*PolicyTemplate)(nil),          // 15: firefik.controlplane.v1.PolicyTemplate
+	(*ListTemplatesRequest)(nil),    // 16: firefik.controlplane.v1.ListTemplatesRequest
+	(*ListTemplatesResponse)(nil),   // 17: firefik.controlplane.v1.ListTemplatesResponse
+	(*GetTemplateRequest)(nil),      // 18: firefik.controlplane.v1.GetTemplateRequest
+	(*PublishTemplateRequest)(nil),  // 19: firefik.controlplane.v1.PublishTemplateRequest
+	(*PublishTemplateResponse)(nil), // 20: firefik.controlplane.v1.PublishTemplateResponse
+	(*RenewCertRequest)(nil),        // 21: firefik.controlplane.v1.RenewCertRequest
+	(*RenewCertResponse)(nil),       // 22: firefik.controlplane.v1.RenewCertResponse
+	nil,                             // 23: firefik.controlplane.v1.AgentIdentity.LabelsEntry
+	nil,                             // 24: firefik.controlplane.v1.ContainerState.LabelsEntry
+	nil,                             // 25: firefik.controlplane.v1.LogLine.FieldsEntry
+	nil,                             // 26: firefik.controlplane.v1.PolicyTemplate.LabelsEntry
+	(*timestamppb.Timestamp)(nil),   // 27: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),         // 28: google.protobuf.Struct
 }
 var file_controlplane_v1_controlplane_proto_depIdxs = []int32{
-	21, // 0: firefik.controlplane.v1.AgentIdentity.labels:type_name -> firefik.controlplane.v1.AgentIdentity.LabelsEntry
+	23, // 0: firefik.controlplane.v1.AgentIdentity.labels:type_name -> firefik.controlplane.v1.AgentIdentity.LabelsEntry
 	1,  // 1: firefik.controlplane.v1.RegisterRequest.identity:type_name -> firefik.controlplane.v1.AgentIdentity
-	25, // 2: firefik.controlplane.v1.RegisterAck.server_time:type_name -> google.protobuf.Timestamp
-	22, // 3: firefik.controlplane.v1.ContainerState.labels:type_name -> firefik.controlplane.v1.ContainerState.LabelsEntry
+	27, // 2: firefik.controlplane.v1.RegisterAck.server_time:type_name -> google.protobuf.Timestamp
+	24, // 3: firefik.controlplane.v1.ContainerState.labels:type_name -> firefik.controlplane.v1.ContainerState.LabelsEntry
 	1,  // 4: firefik.controlplane.v1.AgentSnapshot.agent:type_name -> firefik.controlplane.v1.AgentIdentity
 	4,  // 5: firefik.controlplane.v1.AgentSnapshot.containers:type_name -> firefik.controlplane.v1.ContainerState
-	25, // 6: firefik.controlplane.v1.AgentSnapshot.at:type_name -> google.protobuf.Timestamp
+	27, // 6: firefik.controlplane.v1.AgentSnapshot.at:type_name -> google.protobuf.Timestamp
 	1,  // 7: firefik.controlplane.v1.Heartbeat.agent:type_name -> firefik.controlplane.v1.AgentIdentity
-	25, // 8: firefik.controlplane.v1.Heartbeat.at:type_name -> google.protobuf.Timestamp
+	27, // 8: firefik.controlplane.v1.Heartbeat.at:type_name -> google.protobuf.Timestamp
 	1,  // 9: firefik.controlplane.v1.AuditEvent.agent:type_name -> firefik.controlplane.v1.AgentIdentity
-	26, // 10: firefik.controlplane.v1.AuditEvent.event:type_name -> google.protobuf.Struct
+	28, // 10: firefik.controlplane.v1.AuditEvent.event:type_name -> google.protobuf.Struct
 	1,  // 11: firefik.controlplane.v1.LogLine.agent:type_name -> firefik.controlplane.v1.AgentIdentity
-	25, // 12: firefik.controlplane.v1.LogLine.at:type_name -> google.protobuf.Timestamp
-	23, // 13: firefik.controlplane.v1.LogLine.fields:type_name -> firefik.controlplane.v1.LogLine.FieldsEntry
-	5,  // 14: firefik.controlplane.v1.AgentEvent.snapshot:type_name -> firefik.controlplane.v1.AgentSnapshot
-	7,  // 15: firefik.controlplane.v1.AgentEvent.audit:type_name -> firefik.controlplane.v1.AuditEvent
-	6,  // 16: firefik.controlplane.v1.AgentEvent.heartbeat:type_name -> firefik.controlplane.v1.Heartbeat
-	8,  // 17: firefik.controlplane.v1.AgentEvent.log:type_name -> firefik.controlplane.v1.LogLine
-	0,  // 18: firefik.controlplane.v1.ServerCommand.kind:type_name -> firefik.controlplane.v1.CommandKind
-	26, // 19: firefik.controlplane.v1.ServerCommand.payload:type_name -> google.protobuf.Struct
-	25, // 20: firefik.controlplane.v1.ServerCommand.issued_at:type_name -> google.protobuf.Timestamp
-	25, // 21: firefik.controlplane.v1.CommandAck.completed_at:type_name -> google.protobuf.Timestamp
-	24, // 22: firefik.controlplane.v1.PolicyTemplate.labels:type_name -> firefik.controlplane.v1.PolicyTemplate.LabelsEntry
-	25, // 23: firefik.controlplane.v1.PolicyTemplate.created_at:type_name -> google.protobuf.Timestamp
-	25, // 24: firefik.controlplane.v1.PolicyTemplate.updated_at:type_name -> google.protobuf.Timestamp
-	13, // 25: firefik.controlplane.v1.ListTemplatesResponse.templates:type_name -> firefik.controlplane.v1.PolicyTemplate
-	13, // 26: firefik.controlplane.v1.PublishTemplateRequest.template:type_name -> firefik.controlplane.v1.PolicyTemplate
-	13, // 27: firefik.controlplane.v1.PublishTemplateResponse.template:type_name -> firefik.controlplane.v1.PolicyTemplate
-	2,  // 28: firefik.controlplane.v1.ControlPlane.Register:input_type -> firefik.controlplane.v1.RegisterRequest
-	9,  // 29: firefik.controlplane.v1.ControlPlane.Stream:input_type -> firefik.controlplane.v1.AgentEvent
-	11, // 30: firefik.controlplane.v1.ControlPlane.Ack:input_type -> firefik.controlplane.v1.CommandAck
-	14, // 31: firefik.controlplane.v1.ControlPlane.ListTemplates:input_type -> firefik.controlplane.v1.ListTemplatesRequest
-	16, // 32: firefik.controlplane.v1.ControlPlane.GetTemplate:input_type -> firefik.controlplane.v1.GetTemplateRequest
-	17, // 33: firefik.controlplane.v1.ControlPlane.PublishTemplate:input_type -> firefik.controlplane.v1.PublishTemplateRequest
-	19, // 34: firefik.controlplane.v1.ControlPlane.RenewCert:input_type -> firefik.controlplane.v1.RenewCertRequest
-	3,  // 35: firefik.controlplane.v1.ControlPlane.Register:output_type -> firefik.controlplane.v1.RegisterAck
-	10, // 36: firefik.controlplane.v1.ControlPlane.Stream:output_type -> firefik.controlplane.v1.ServerCommand
-	12, // 37: firefik.controlplane.v1.ControlPlane.Ack:output_type -> firefik.controlplane.v1.AckReply
-	15, // 38: firefik.controlplane.v1.ControlPlane.ListTemplates:output_type -> firefik.controlplane.v1.ListTemplatesResponse
-	13, // 39: firefik.controlplane.v1.ControlPlane.GetTemplate:output_type -> firefik.controlplane.v1.PolicyTemplate
-	18, // 40: firefik.controlplane.v1.ControlPlane.PublishTemplate:output_type -> firefik.controlplane.v1.PublishTemplateResponse
-	20, // 41: firefik.controlplane.v1.ControlPlane.RenewCert:output_type -> firefik.controlplane.v1.RenewCertResponse
-	35, // [35:42] is the sub-list for method output_type
-	28, // [28:35] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	27, // 12: firefik.controlplane.v1.LogLine.at:type_name -> google.protobuf.Timestamp
+	25, // 13: firefik.controlplane.v1.LogLine.fields:type_name -> firefik.controlplane.v1.LogLine.FieldsEntry
+	1,  // 14: firefik.controlplane.v1.AutogenProposals.agent:type_name -> firefik.controlplane.v1.AgentIdentity
+	9,  // 15: firefik.controlplane.v1.AutogenProposals.proposals:type_name -> firefik.controlplane.v1.AutogenProposal
+	27, // 16: firefik.controlplane.v1.AutogenProposals.at:type_name -> google.protobuf.Timestamp
+	5,  // 17: firefik.controlplane.v1.AgentEvent.snapshot:type_name -> firefik.controlplane.v1.AgentSnapshot
+	7,  // 18: firefik.controlplane.v1.AgentEvent.audit:type_name -> firefik.controlplane.v1.AuditEvent
+	6,  // 19: firefik.controlplane.v1.AgentEvent.heartbeat:type_name -> firefik.controlplane.v1.Heartbeat
+	8,  // 20: firefik.controlplane.v1.AgentEvent.log:type_name -> firefik.controlplane.v1.LogLine
+	10, // 21: firefik.controlplane.v1.AgentEvent.autogen_proposals:type_name -> firefik.controlplane.v1.AutogenProposals
+	0,  // 22: firefik.controlplane.v1.ServerCommand.kind:type_name -> firefik.controlplane.v1.CommandKind
+	28, // 23: firefik.controlplane.v1.ServerCommand.payload:type_name -> google.protobuf.Struct
+	27, // 24: firefik.controlplane.v1.ServerCommand.issued_at:type_name -> google.protobuf.Timestamp
+	27, // 25: firefik.controlplane.v1.CommandAck.completed_at:type_name -> google.protobuf.Timestamp
+	28, // 26: firefik.controlplane.v1.CommandAck.result_payload:type_name -> google.protobuf.Struct
+	26, // 27: firefik.controlplane.v1.PolicyTemplate.labels:type_name -> firefik.controlplane.v1.PolicyTemplate.LabelsEntry
+	27, // 28: firefik.controlplane.v1.PolicyTemplate.created_at:type_name -> google.protobuf.Timestamp
+	27, // 29: firefik.controlplane.v1.PolicyTemplate.updated_at:type_name -> google.protobuf.Timestamp
+	15, // 30: firefik.controlplane.v1.ListTemplatesResponse.templates:type_name -> firefik.controlplane.v1.PolicyTemplate
+	15, // 31: firefik.controlplane.v1.PublishTemplateRequest.template:type_name -> firefik.controlplane.v1.PolicyTemplate
+	15, // 32: firefik.controlplane.v1.PublishTemplateResponse.template:type_name -> firefik.controlplane.v1.PolicyTemplate
+	2,  // 33: firefik.controlplane.v1.ControlPlane.Register:input_type -> firefik.controlplane.v1.RegisterRequest
+	11, // 34: firefik.controlplane.v1.ControlPlane.Stream:input_type -> firefik.controlplane.v1.AgentEvent
+	13, // 35: firefik.controlplane.v1.ControlPlane.Ack:input_type -> firefik.controlplane.v1.CommandAck
+	16, // 36: firefik.controlplane.v1.ControlPlane.ListTemplates:input_type -> firefik.controlplane.v1.ListTemplatesRequest
+	18, // 37: firefik.controlplane.v1.ControlPlane.GetTemplate:input_type -> firefik.controlplane.v1.GetTemplateRequest
+	19, // 38: firefik.controlplane.v1.ControlPlane.PublishTemplate:input_type -> firefik.controlplane.v1.PublishTemplateRequest
+	21, // 39: firefik.controlplane.v1.ControlPlane.RenewCert:input_type -> firefik.controlplane.v1.RenewCertRequest
+	3,  // 40: firefik.controlplane.v1.ControlPlane.Register:output_type -> firefik.controlplane.v1.RegisterAck
+	12, // 41: firefik.controlplane.v1.ControlPlane.Stream:output_type -> firefik.controlplane.v1.ServerCommand
+	14, // 42: firefik.controlplane.v1.ControlPlane.Ack:output_type -> firefik.controlplane.v1.AckReply
+	17, // 43: firefik.controlplane.v1.ControlPlane.ListTemplates:output_type -> firefik.controlplane.v1.ListTemplatesResponse
+	15, // 44: firefik.controlplane.v1.ControlPlane.GetTemplate:output_type -> firefik.controlplane.v1.PolicyTemplate
+	20, // 45: firefik.controlplane.v1.ControlPlane.PublishTemplate:output_type -> firefik.controlplane.v1.PublishTemplateResponse
+	22, // 46: firefik.controlplane.v1.ControlPlane.RenewCert:output_type -> firefik.controlplane.v1.RenewCertResponse
+	40, // [40:47] is the sub-list for method output_type
+	33, // [33:40] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_controlplane_v1_controlplane_proto_init() }
@@ -1574,11 +1767,12 @@ func file_controlplane_v1_controlplane_proto_init() {
 	if File_controlplane_v1_controlplane_proto != nil {
 		return
 	}
-	file_controlplane_v1_controlplane_proto_msgTypes[8].OneofWrappers = []any{
+	file_controlplane_v1_controlplane_proto_msgTypes[10].OneofWrappers = []any{
 		(*AgentEvent_Snapshot)(nil),
 		(*AgentEvent_Audit)(nil),
 		(*AgentEvent_Heartbeat)(nil),
 		(*AgentEvent_Log)(nil),
+		(*AgentEvent_AutogenProposals)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1586,7 +1780,7 @@ func file_controlplane_v1_controlplane_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_controlplane_v1_controlplane_proto_rawDesc), len(file_controlplane_v1_controlplane_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   24,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

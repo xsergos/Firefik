@@ -119,6 +119,8 @@ func (s *HTTPServer) handleAgent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, agentDetailDTO{Agent: toAgentDTO(rec), Snapshot: snap})
+	case sub == "stats" && r.Method == http.MethodGet:
+		s.handleAgentStatsPull(w, r, id)
 	case sub == "commands" && r.Method == http.MethodPost:
 		s.dispatchCommand(w, r, id)
 	case sub == "logs" && r.Method == http.MethodGet:

@@ -160,6 +160,38 @@ func (c *GRPCClient) SendHeartbeat() error {
 	})
 }
 
+
+func (c *GRPCClient) SendAutogenProposals(items []AutogenProposal) error {
+	if len(items) == 0 {
+		return nil
+	}
+	c.mu.Lock()
+	st := c.stream
+	c.mu.Unlock()
+	if st == nil {
+		return ErrStreamDown
+	}
+	pbItems := make([]*pb.AutogenProposal, 0, len(items))
+	for _, p := range items {
+		pbItems = append(pbItems, &pb.AutogenProposal{
+			ContainerId: p.ContainerID,
+			Ports:       append([]uint32(nil), p.Ports...),
+			Peers:       append([]string(nil), p.Peers...),
+			ObservedFor: p.ObservedFor,
+			Confidence:  p.Confidence,
+		})
+	}
+	return st.Send(&pb.AgentEvent{
+		Kind: &pb.AgentEvent_AutogenProposals{
+			AutogenProposals: &pb.AutogenProposals{
+				Agent:     toPBIdentity(c.cfg.Identity),
+				Proposals: pbItems,
+				At:        timestamppb.Now(),
+			},
+		},
+	})
+}
+
 var ErrStreamDown = errors.New("control-plane gRPC stream is down")
 
 func (c *GRPCClient) runOnce(ctx context.Context) error {
@@ -315,13 +347,19 @@ func toPBSnapshot(in AgentSnapshot) *pb.AgentSnapshot {
 }
 
 func toPBAck(in CommandAck) *pb.CommandAck {
-	return &pb.CommandAck{
+	out := &pb.CommandAck{
 		Id:          in.ID,
 		AgentId:     in.AgentID,
 		Success:     in.Success,
 		Error:       in.Error,
 		CompletedAt: timestamppb.New(in.CompletedAt),
 	}
+	if len(in.ResultPayload) > 0 {
+		if p, err := structpb.NewStruct(in.ResultPayload); err == nil {
+			out.ResultPayload = p
+		}
+	}
+	return out
 }
 
 func toNativeCommand(in *pb.ServerCommand) Command {
@@ -349,6 +387,12 @@ func commandKindFromPB(k pb.CommandKind) CommandKind {
 		return CommandReconcile
 	case pb.CommandKind_COMMAND_KIND_TOKEN_ROTATE:
 		return CommandTokenRotate
+	case pb.CommandKind_COMMAND_KIND_STATS_COLLECT:
+		return CommandStatsCollect
+	case pb.CommandKind_COMMAND_KIND_AUTOGEN_APPROVE:
+		return CommandAutogenApprove
+	case pb.CommandKind_COMMAND_KIND_AUTOGEN_REJECT:
+		return CommandAutogenReject
 	default:
 		return CommandKind("")
 	}

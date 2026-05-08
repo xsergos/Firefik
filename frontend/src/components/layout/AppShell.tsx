@@ -3,6 +3,7 @@ import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { isPanelMode } from "@/lib/panelMode";
 
 function ThemeToggle() {
   const { t } = useTranslation();
@@ -24,13 +25,17 @@ export function AppShell() {
   const { t } = useTranslation();
   const navItems = [
     { to: "/", label: t("nav.dashboard"), end: true },
-    { to: "/fleet", label: t("nav.fleet", "Fleet") },
+    ...(isPanelMode ? [{ to: "/fleet", label: t("nav.fleet", "Fleet") }] : []),
     { to: "/containers", label: t("nav.containers") },
     { to: "/rules", label: t("nav.rules") },
     { to: "/policies", label: t("nav.policies") },
     { to: "/proposals", label: t("nav.proposals") },
-    { to: "/templates", label: t("nav.templates", "Templates") },
-    { to: "/approvals", label: t("nav.approvals", "Approvals") },
+    ...(isPanelMode
+      ? [
+          { to: "/templates", label: t("nav.templates", "Templates") },
+          { to: "/approvals", label: t("nav.approvals", "Approvals") },
+        ]
+      : []),
     { to: "/logs", label: t("nav.logs") },
     { to: "/history", label: t("nav.history") },
   ];
