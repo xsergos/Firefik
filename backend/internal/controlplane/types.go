@@ -11,10 +11,17 @@ type AgentIdentity struct {
 	Labels     map[string]string `json:"labels,omitempty"`
 }
 
+type TrafficBucket struct {
+	Timestamp string `json:"ts"`
+	Accepted  int64  `json:"accepted"`
+	Dropped   int64  `json:"dropped"`
+}
+
 type AgentSnapshot struct {
 	Agent      AgentIdentity    `json:"agent"`
 	Containers []ContainerState `json:"containers"`
 	At         time.Time        `json:"at"`
+	Traffic    []TrafficBucket  `json:"traffic,omitempty"`
 }
 
 type ContainerState struct {

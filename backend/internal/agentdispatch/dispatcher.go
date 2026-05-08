@@ -1,9 +1,10 @@
-package main
+package agentdispatch
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -17,17 +18,108 @@ import (
 
 const proposalLookupMinAge = 15 * time.Minute
 
-func (d *engineDispatcher) collectStats(ctx context.Context) (map[string]any, error) {
-	if d.docker == nil {
+type Engine interface {
+	ApplyContainer(ctx context.Context, id string, source audit.Source) error
+	RemoveContainer(id string, source audit.Source) error
+	Reconcile(ctx context.Context, source audit.Source) error
+	GetApplied() map[string]docker.ContainerConfig
+}
+
+type Deps struct {
+	Engine   Engine
+	Docker   rules.DockerReader
+	Config   *config.Config
+	Traffic  TrafficSnapshotter
+	Observer *autogen.Observer
+	Audit    *audit.Logger
+	Logger   *slog.Logger
+}
+
+type TrafficSnapshotter interface {
+	Last(n int) []TrafficBucket
+}
+
+type TrafficBucket struct {
+	Timestamp string
+	Accepted  int64
+	Dropped   int64
+}
+
+type Dispatcher struct {
+	deps Deps
+}
+
+func New(deps Deps) *Dispatcher {
+	return &Dispatcher{deps: deps}
+}
+
+func (d *Dispatcher) Dispatch(ctx context.Context, cmd controlplane.Command) controlplane.CommandAck {
+	ack := controlplane.CommandAck{ID: cmd.ID}
+	var err error
+	switch cmd.Kind {
+	case controlplane.CommandApply:
+		if cmd.ContainerID == "" {
+			err = fmt.Errorf("apply requires container_id")
+			break
+		}
+		err = d.deps.Engine.ApplyContainer(ctx, cmd.ContainerID, audit.SourceAPI)
+	case controlplane.CommandDisable:
+		if cmd.ContainerID == "" {
+			err = fmt.Errorf("disable requires container_id")
+			break
+		}
+		err = d.deps.Engine.RemoveContainer(cmd.ContainerID, audit.SourceAPI)
+	case controlplane.CommandReconcile:
+		err = d.deps.Engine.Reconcile(ctx, audit.SourceConfigReload)
+	case controlplane.CommandTokenRotate:
+		err = fmt.Errorf("token-rotate is operator-driven via FIREFIK_API_TOKEN_FILE, not control-plane commands")
+	case controlplane.CommandStatsCollect:
+		payload, statsErr := d.collectStats(ctx)
+		if statsErr != nil {
+			err = statsErr
+			break
+		}
+		ack.ResultPayload = payload
+	case controlplane.CommandAutogenApprove:
+		payload, autoErr := d.autogenApprove(ctx, cmd)
+		if autoErr != nil {
+			err = autoErr
+			break
+		}
+		ack.ResultPayload = payload
+	case controlplane.CommandAutogenReject:
+		payload, autoErr := d.autogenReject(ctx, cmd)
+		if autoErr != nil {
+			err = autoErr
+			break
+		}
+		ack.ResultPayload = payload
+	default:
+		err = fmt.Errorf("unknown command kind %q", cmd.Kind)
+	}
+	if err != nil {
+		ack.Success = false
+		ack.Error = err.Error()
+		if d.deps.Logger != nil {
+			d.deps.Logger.Warn("control-plane command failed", "kind", cmd.Kind, "error", err)
+		}
+	} else {
+		ack.Success = true
+	}
+	return ack
+}
+
+func (d *Dispatcher) collectStats(ctx context.Context) (map[string]any, error) {
+	if d.deps.Docker == nil {
 		return nil, errors.New("docker client unavailable")
 	}
-	containers, err := d.docker.ListContainers(ctx)
+	containers, err := d.deps.Docker.ListContainers(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
 	var fileRules config.RulesFile
-	if d.cfg != nil {
-		fileRules, _ = config.LoadRulesFile(d.cfg.ConfigFile)
+	if d.deps.Config != nil {
+		fileRules, _ = config.LoadRulesFile(d.deps.Config.ConfigFile)
 	}
 	total, running, enabled := 0, 0, 0
 	for _, ctr := range containers {
@@ -48,8 +140,8 @@ func (d *engineDispatcher) collectStats(ctx context.Context) (map[string]any, er
 			"enabled": enabled,
 		},
 	}
-	if d.traffic != nil {
-		buckets := d.traffic.Last(60)
+	if d.deps.Traffic != nil {
+		buckets := d.deps.Traffic.Last(60)
 		traffic := make([]map[string]any, 0, len(buckets))
 		for _, b := range buckets {
 			traffic = append(traffic, map[string]any{
@@ -60,16 +152,16 @@ func (d *engineDispatcher) collectStats(ctx context.Context) (map[string]any, er
 		}
 		out["traffic"] = traffic
 	}
-	if d.engine != nil {
-		applied := d.engine.GetApplied()
+	if d.deps.Engine != nil {
+		applied := d.deps.Engine.GetApplied()
 		out["rules_active_containers"] = len(applied)
 	}
 	out["at"] = time.Now().UTC().Format(time.RFC3339)
 	return out, nil
 }
 
-func (d *engineDispatcher) autogenApprove(ctx context.Context, cmd controlplane.Command) (map[string]any, error) {
-	if d.observer == nil {
+func (d *Dispatcher) autogenApprove(ctx context.Context, cmd controlplane.Command) (map[string]any, error) {
+	if d.deps.Observer == nil {
 		return nil, errors.New("autogen disabled on agent")
 	}
 	containerID := cmd.ContainerID
@@ -91,13 +183,13 @@ func (d *engineDispatcher) autogenApprove(ctx context.Context, cmd controlplane.
 	if mode == "policy" {
 		snippet = autogenPolicySnippet(*target)
 	}
-	if store := d.observer.StoreHandle(); store != nil {
+	if store := d.deps.Observer.StoreHandle(); store != nil {
 		if err := store.MarkProposal(ctx, target.ContainerID, autogen.StatusApproved, "control-plane", ""); err != nil {
 			return nil, fmt.Errorf("mark approved: %w", err)
 		}
 	}
-	if d.auditLog != nil {
-		d.auditLog.AutogenApproved(target.ContainerID, "", target.Ports, target.Peers, mode, "control-plane")
+	if d.deps.Audit != nil {
+		d.deps.Audit.AutogenApproved(target.ContainerID, "", target.Ports, target.Peers, mode, "control-plane")
 	}
 	return map[string]any{
 		"mode":         mode,
@@ -108,8 +200,8 @@ func (d *engineDispatcher) autogenApprove(ctx context.Context, cmd controlplane.
 	}, nil
 }
 
-func (d *engineDispatcher) autogenReject(ctx context.Context, cmd controlplane.Command) (map[string]any, error) {
-	if d.observer == nil {
+func (d *Dispatcher) autogenReject(ctx context.Context, cmd controlplane.Command) (map[string]any, error) {
+	if d.deps.Observer == nil {
 		return nil, errors.New("autogen disabled on agent")
 	}
 	containerID := cmd.ContainerID
@@ -117,13 +209,13 @@ func (d *engineDispatcher) autogenReject(ctx context.Context, cmd controlplane.C
 		return nil, errors.New("container_id required")
 	}
 	reason, _ := cmd.Payload["reason"].(string)
-	if store := d.observer.StoreHandle(); store != nil {
+	if store := d.deps.Observer.StoreHandle(); store != nil {
 		if err := store.MarkProposal(ctx, containerID, autogen.StatusRejected, "control-plane", reason); err != nil {
 			return nil, fmt.Errorf("mark rejected: %w", err)
 		}
 	}
-	if d.auditLog != nil {
-		d.auditLog.AutogenRejected(containerID, "", reason, "control-plane")
+	if d.deps.Audit != nil {
+		d.deps.Audit.AutogenRejected(containerID, "", reason, "control-plane")
 	}
 	return map[string]any{
 		"container_id": containerID,
@@ -131,18 +223,18 @@ func (d *engineDispatcher) autogenReject(ctx context.Context, cmd controlplane.C
 	}, nil
 }
 
-func (d *engineDispatcher) findProposal(ctx context.Context, containerID string) *autogen.Proposal {
+func (d *Dispatcher) findProposal(ctx context.Context, containerID string) *autogen.Proposal {
 	minSamples := 0
-	if d.cfg != nil {
-		minSamples = d.cfg.AutogenMinSamples
+	if d.deps.Config != nil {
+		minSamples = d.deps.Config.AutogenMinSamples
 	}
-	for _, p := range d.observer.Propose(minSamples, proposalLookupMinAge) {
+	for _, p := range d.deps.Observer.Propose(minSamples, proposalLookupMinAge) {
 		if p.ContainerID == containerID || strings.HasPrefix(p.ContainerID, containerID) {
 			out := p
 			return &out
 		}
 	}
-	if store := d.observer.StoreHandle(); store != nil {
+	if store := d.deps.Observer.StoreHandle(); store != nil {
 		records, _ := store.ListProposals(ctx, autogen.StatusPending)
 		for _, rec := range records {
 			if rec.ContainerID == containerID || strings.HasPrefix(rec.ContainerID, containerID) {
@@ -190,22 +282,20 @@ func autogenPolicySnippet(p autogen.Proposal) string {
 	return b.String()
 }
 
-var _ = audit.SourceAPI
-
-type autogenProposalAdapter struct {
-	observer *autogen.Observer
-	cfg      *config.Config
+type ProposalSource struct {
+	Observer *autogen.Observer
+	Config   *config.Config
 }
 
-func (a *autogenProposalAdapter) Proposals(_ context.Context) []controlplane.AutogenProposal {
-	if a.observer == nil {
+func (a *ProposalSource) Proposals(_ context.Context) []controlplane.AutogenProposal {
+	if a.Observer == nil {
 		return nil
 	}
 	min := 0
-	if a.cfg != nil {
-		min = a.cfg.AutogenMinSamples
+	if a.Config != nil {
+		min = a.Config.AutogenMinSamples
 	}
-	props := a.observer.Propose(min, proposalLookupMinAge)
+	props := a.Observer.Propose(min, proposalLookupMinAge)
 	out := make([]controlplane.AutogenProposal, 0, len(props))
 	for _, p := range props {
 		ports := make([]uint32, 0, len(p.Ports))
@@ -222,6 +312,3 @@ func (a *autogenProposalAdapter) Proposals(_ context.Context) []controlplane.Aut
 	}
 	return out
 }
-
-var _ = rules.NflogGroup
-

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAuditHistory, type AuditHistoryEvent } from "@/lib/api";
+import { isPanelMode } from "@/lib/panelMode";
 
 type Filter = {
   action: string;
@@ -103,6 +104,7 @@ export default function HistoryPage() {
           <thead className="bg-muted/50">
             <tr>
               <th className="text-left px-3 py-2">Time</th>
+              {isPanelMode && <th className="text-left px-3 py-2">Agent</th>}
               <th className="text-left px-3 py-2">Action</th>
               <th className="text-left px-3 py-2">Source</th>
               <th className="text-left px-3 py-2">Container</th>
@@ -114,6 +116,11 @@ export default function HistoryPage() {
             {events.map((ev, i) => (
               <tr key={`${ev.ts}-${i}`} className="border-t hover:bg-accent/30">
                 <td className="px-3 py-1.5 whitespace-nowrap">{formatTime(ev.ts)}</td>
+                {isPanelMode && (
+                  <td className="px-3 py-1.5 font-mono text-xs">
+                    {ev.agent_hostname || ev.agent_id || "—"}
+                  </td>
+                )}
                 <td className="px-3 py-1.5">{ev.action}</td>
                 <td className="px-3 py-1.5">{ev.source}</td>
                 <td className="px-3 py-1.5">
@@ -125,8 +132,8 @@ export default function HistoryPage() {
             ))}
             {events.length === 0 && !isLoading && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
-                  No events. Make sure <code>FIREFIK_AUDIT_SINK</code> includes <code>history</code>.
+                <td colSpan={isPanelMode ? 7 : 6} className="px-3 py-6 text-center text-muted-foreground">
+                  No events.
                 </td>
               </tr>
             )}

@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"firefik/internal/agentdispatch"
 	"firefik/internal/api"
 	"firefik/internal/audit"
 	"firefik/internal/autogen"
@@ -405,20 +406,20 @@ func run(logger *slog.Logger) error {
 			SnapshotInterval:  time.Duration(cfg.ControlPlaneSnapshotS) * time.Second,
 			HeartbeatInterval: time.Duration(cfg.ControlPlaneHeartbeatS) * time.Second,
 		}
-		source := &engineSnapshotSource{engine: engine, docker: dockerClient}
-		dispatcher := &engineDispatcher{
-			engine:   engine,
-			docker:   dockerClient,
-			cfg:      cfg,
-			traffic:  trafficStore,
-			observer: observer,
-			auditLog: auditLogger,
-			logger:   logger,
-		}
+		source := &engineSnapshotSource{engine: engine, docker: dockerClient, traffic: trafficStore}
+		dispatcher := agentdispatch.New(agentdispatch.Deps{
+			Engine:   engine,
+			Docker:   dockerClient,
+			Config:   cfg,
+			Traffic:  &trafficStoreAdapter{store: trafficStore},
+			Observer: observer,
+			Audit:    auditLogger,
+			Logger:   logger,
+		})
 		bridge := newCPLogBridge(hub)
 		loop := controlplane.NewAgentLoop(loopCfg, identity, source, dispatcher, logger).WithLogSource(bridge)
 		if observer != nil {
-			loop = loop.WithProposalSource(&autogenProposalAdapter{observer: observer, cfg: cfg})
+			loop = loop.WithProposalSource(&agentdispatch.ProposalSource{Observer: observer, Config: cfg})
 		}
 		logger.Info("control-plane agent enabled",
 			"grpc", cfg.ControlPlaneGRPC,
@@ -552,8 +553,9 @@ func firstNonEmpty(values ...string) string {
 }
 
 type engineSnapshotSource struct {
-	engine *rules.Engine
-	docker rules.DockerReader
+	engine  *rules.Engine
+	docker  rules.DockerReader
+	traffic *api.TrafficStore
 }
 
 func deriveSources(firewallStatus string, labels map[string]string) []string {
@@ -601,73 +603,31 @@ func (s *engineSnapshotSource) Snapshot(ctx context.Context, id controlplane.Age
 			Sources:        deriveSources(fwStatus, ctr.Labels),
 		})
 	}
+	if s.traffic != nil {
+		for _, b := range s.traffic.Last(60) {
+			out.Traffic = append(out.Traffic, controlplane.TrafficBucket{
+				Timestamp: b.Timestamp,
+				Accepted:  b.Accepted,
+				Dropped:   b.Dropped,
+			})
+		}
+	}
 	return out, nil
 }
 
-type engineDispatcher struct {
-	engine   *rules.Engine
-	docker   rules.DockerReader
-	cfg      *config.Config
-	traffic  *api.TrafficStore
-	observer *autogen.Observer
-	auditLog *audit.Logger
-	logger   *slog.Logger
-}
+type trafficStoreAdapter struct{ store *api.TrafficStore }
 
-func (d *engineDispatcher) Dispatch(ctx context.Context, cmd controlplane.Command) controlplane.CommandAck {
-	ack := controlplane.CommandAck{ID: cmd.ID}
-	var err error
-	switch cmd.Kind {
-	case controlplane.CommandApply:
-		if cmd.ContainerID == "" {
-			err = fmt.Errorf("apply requires container_id")
-			break
-		}
-		err = d.engine.ApplyContainer(ctx, cmd.ContainerID, audit.SourceAPI)
-	case controlplane.CommandDisable:
-		if cmd.ContainerID == "" {
-			err = fmt.Errorf("disable requires container_id")
-			break
-		}
-		err = d.engine.RemoveContainer(cmd.ContainerID, audit.SourceAPI)
-	case controlplane.CommandReconcile:
-		err = d.engine.Reconcile(ctx, audit.SourceConfigReload)
-	case controlplane.CommandTokenRotate:
-		err = fmt.Errorf("token-rotate is operator-driven via FIREFIK_API_TOKEN_FILE, not control-plane commands")
-	case controlplane.CommandStatsCollect:
-		payload, statsErr := d.collectStats(ctx)
-		if statsErr != nil {
-			err = statsErr
-			break
-		}
-		ack.ResultPayload = payload
-	case controlplane.CommandAutogenApprove:
-		payload, autoErr := d.autogenApprove(ctx, cmd)
-		if autoErr != nil {
-			err = autoErr
-			break
-		}
-		ack.ResultPayload = payload
-	case controlplane.CommandAutogenReject:
-		payload, autoErr := d.autogenReject(ctx, cmd)
-		if autoErr != nil {
-			err = autoErr
-			break
-		}
-		ack.ResultPayload = payload
-	default:
-		err = fmt.Errorf("unknown command kind %q", cmd.Kind)
+func (a *trafficStoreAdapter) Last(n int) []agentdispatch.TrafficBucket {
+	src := a.store.Last(n)
+	out := make([]agentdispatch.TrafficBucket, 0, len(src))
+	for _, b := range src {
+		out = append(out, agentdispatch.TrafficBucket{
+			Timestamp: b.Timestamp,
+			Accepted:  b.Accepted,
+			Dropped:   b.Dropped,
+		})
 	}
-	if err != nil {
-		ack.Success = false
-		ack.Error = err.Error()
-		if d.logger != nil {
-			d.logger.Warn("control-plane command failed", "kind", cmd.Kind, "error", err)
-		}
-	} else {
-		ack.Success = true
-	}
-	return ack
+	return out
 }
 
 func cleanupOldSuffixes(cfg *config.Config, logger *slog.Logger, auditLog *audit.Logger) error {

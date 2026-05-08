@@ -278,6 +278,7 @@ func (s *HTTPServer) Handler() http.Handler {
 		mux.HandleFunc("/v1/enrollment-tokens", s.requireBearer(s.handleEnrollmentTokens))
 		mux.HandleFunc("/v1/stats", s.requireBearer(s.handleFleetStats))
 		mux.HandleFunc("/v1/containers", s.requireBearer(s.handleFleetContainers))
+		mux.HandleFunc("/v1/containers/", s.requireBearer(s.handleFleetContainerAction))
 		mux.HandleFunc("/v1/rules", s.requireBearer(s.handleFleetRules))
 		mux.HandleFunc("/v1/audit/history", s.requireBearer(s.handleFleetAuditHistory))
 		mux.HandleFunc("/v1/policies", s.requireBearer(s.handlePoliciesIndex))

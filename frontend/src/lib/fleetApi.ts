@@ -139,6 +139,16 @@ const fleetStatsSchema = z.object({
     running: z.number(),
     enabled: z.number(),
   }),
+  traffic: z
+    .array(
+      z.object({
+        ts: z.string(),
+        accepted: z.number(),
+        dropped: z.number(),
+      }),
+    )
+    .nullable()
+    .transform((v) => v ?? []),
 });
 
 export type FleetStats = z.infer<typeof fleetStatsSchema>;

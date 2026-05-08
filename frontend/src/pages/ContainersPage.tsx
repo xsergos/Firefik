@@ -28,6 +28,7 @@ import {
 import { TableLoading, TableEmpty, TableError } from "@/components/shared/TableStates";
 import type { ContainerDTO, FirewallRuleSetDTO } from "@/types/api";
 import { containerToLabelsYaml, downloadTextFile } from "@/lib/containerYaml";
+import { isPanelMode } from "@/lib/panelMode";
 
 export default function ContainersPage() {
   const { t } = useTranslation();
@@ -71,7 +72,7 @@ export default function ContainersPage() {
       e.preventDefault();
       if (e.key === "a") {
         setApplyingId(ctr.id);
-        apply.mutate(ctr.id, { onSettled: () => setApplyingId(null) });
+        apply.mutate({ id: ctr.id, agent_id: ctr.agent_id }, { onSettled: () => setApplyingId(null) });
       } else if (ctr.firewallStatus === "active") {
         setConfirmDeactivate(ctr);
       }
@@ -154,7 +155,7 @@ export default function ContainersPage() {
   const doBulkApply = () => {
     if (selectedVisible.length === 0) return;
     bulk.mutate(
-      selectedVisible.map((c) => ({ id: c.id, action: "apply" as const })),
+      selectedVisible.map((c) => ({ id: c.id, action: "apply" as const, agent_id: c.agent_id })),
       { onSuccess: clearSelection },
     );
   };
@@ -162,7 +163,7 @@ export default function ContainersPage() {
   const doBulkDisable = () => {
     if (selectedVisible.length === 0) return;
     bulk.mutate(
-      selectedVisible.map((c) => ({ id: c.id, action: "disable" as const })),
+      selectedVisible.map((c) => ({ id: c.id, action: "disable" as const, agent_id: c.agent_id })),
       {
         onSuccess: () => {
           clearSelection();
@@ -244,6 +245,7 @@ export default function ContainersPage() {
                 onChange={toggleSelectAllVisible}
               />
             </TableHead>
+            {isPanelMode && <TableHead>Agent</TableHead>}
             <TableHead>Name</TableHead>
             <TableHead>ID</TableHead>
             <TableHead>Status</TableHead>
@@ -256,7 +258,7 @@ export default function ContainersPage() {
         <TableBody>
           {filtered?.length === 0 && (
             <TableEmpty
-              colSpan={8}
+              colSpan={isPanelMode ? 9 : 8}
               label={filter ? `No containers match "${filter}".` : "No containers yet."}
             />
           )}
@@ -281,6 +283,11 @@ export default function ContainersPage() {
                   />
                 ) : null}
               </TableCell>
+              {isPanelMode && (
+                <TableCell className="font-mono text-xs">
+                  {ctr.agent_hostname || ctr.agent_id || "—"}
+                </TableCell>
+              )}
               <TableCell className="font-medium">{ctr.name}</TableCell>
               <TableCell className="font-mono text-xs text-muted-foreground">
                 {ctr.id}
@@ -323,7 +330,7 @@ export default function ContainersPage() {
                       disabled={applyingId !== null || deactivatingId !== null}
                       onClick={() => {
                         setApplyingId(ctr.id);
-                        apply.mutate(ctr.id, {
+                        apply.mutate({ id: ctr.id, agent_id: ctr.agent_id }, {
                           onSettled: () => setApplyingId(null),
                         });
                       }}
@@ -406,7 +413,7 @@ export default function ContainersPage() {
                 const target = confirmDeactivate;
                 setConfirmDeactivate(null);
                 setDeactivatingId(target.id);
-                deactivate.mutate(target.id, {
+                deactivate.mutate({ id: target.id, agent_id: target.agent_id }, {
                   onSettled: () => setDeactivatingId(null),
                 });
               }}

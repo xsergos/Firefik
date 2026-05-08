@@ -61,6 +61,11 @@ function ContainerRuleCard({ entry }: { entry: RuleEntry }) {
           <Badge variant="outline" className="text-xs font-normal">
             {entry.containerID}
           </Badge>
+          {(entry.agent_hostname || entry.agent_id) && (
+            <Badge variant="secondary" className="text-xs font-normal">
+              agent: {entry.agent_hostname || entry.agent_id}
+            </Badge>
+          )}
           <Badge variant={entry.defaultPolicy === "DROP" ? "destructive" : "secondary"}>
             {entry.defaultPolicy}
           </Badge>

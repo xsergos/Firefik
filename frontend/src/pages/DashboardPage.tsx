@@ -57,6 +57,10 @@ function useFleetStats() {
 
 function FleetDashboard() {
   const { data, isLoading, isError } = useFleetStats();
+  const fleetTraffic = useMemo(
+    () => (data?.traffic ? downsample(data.traffic) : []),
+    [data],
+  );
   if (isError) {
     return <TableError label="Failed to load fleet stats. Make sure the control plane is running." />;
   }
@@ -76,6 +80,53 @@ function FleetDashboard() {
         <StatCard title="Running" value={isLoading ? "…" : String(c.running)} />
         <StatCard title="Firewall enabled" value={isLoading ? "…" : String(c.enabled)} />
       </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Fleet traffic (sum across all agents)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <TableLoading label="Loading traffic data…" />
+          ) : fleetTraffic.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={fleetTraffic} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorFleetAccepted" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorFleetDropped" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="ts"
+                  tickFormatter={(v: string) =>
+                    new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                  }
+                  tick={{ fontSize: 11 }}
+                  minTickGap={40}
+                />
+                <YAxis tick={{ fontSize: 11 }} width={32} />
+                <Tooltip
+                  labelFormatter={(v) => (typeof v === "string" && v ? new Date(v).toLocaleTimeString() : "")}
+                  formatter={(value, name) => [value, name === "accepted" ? "Accepted" : "Dropped"]}
+                />
+                <Legend formatter={(v) => (v === "accepted" ? "Accepted" : "Dropped")} />
+                <Area type="monotone" dataKey="accepted" stroke="#22c55e" strokeWidth={2}
+                      fill="url(#colorFleetAccepted)" dot={false} />
+                <Area type="monotone" dataKey="dropped" stroke="#ef4444" strokeWidth={2}
+                      fill="url(#colorFleetDropped)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-muted-foreground py-10 text-center">
+              No traffic from any agent yet.
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -271,6 +271,13 @@ func toNativeSnapshot(in *pb.AgentSnapshot) AgentSnapshot {
 			Sources:        append([]string(nil), c.Sources...),
 		})
 	}
+	for _, b := range in.Traffic {
+		out.Traffic = append(out.Traffic, TrafficBucket{
+			Timestamp: b.Ts,
+			Accepted:  b.Accepted,
+			Dropped:   b.Dropped,
+		})
+	}
 	return out
 }
 

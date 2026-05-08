@@ -47,7 +47,7 @@ export default function ProposalsPage() {
     if (!active) return;
     setBusy(true);
     try {
-      const res = await approveAutogen(active.container_id, mode);
+      const res = await approveAutogen(active.container_id, mode, active.agent_id);
       setArtifact(res);
       toast.success(`Proposal approved as ${mode}. Copy the snippet below.`);
       await refetch();
@@ -62,7 +62,7 @@ export default function ProposalsPage() {
     if (!active) return;
     setBusy(true);
     try {
-      await rejectAutogen(active.container_id);
+      await rejectAutogen(active.container_id, undefined, active.agent_id);
       toast.success("Proposal rejected.");
       setArtifact(null);
       await refetch();
@@ -121,6 +121,11 @@ export default function ProposalsPage() {
                   }`}
                 >
                   <div className="font-mono text-xs">{p.container_id.slice(0, 12)}</div>
+                  {(p.agent_hostname || p.agent_id) && (
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {p.agent_hostname || p.agent_id}
+                    </div>
+                  )}
                   <div className="flex items-center gap-1 mt-1">
                     <span
                       className={`text-[10px] rounded px-1.5 py-0.5 ${confidenceBadgeClass(p.confidence)}`}

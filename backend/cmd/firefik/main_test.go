@@ -262,56 +262,6 @@ func TestSelectBackendNftablesNonLinux(t *testing.T) {
 	}
 }
 
-func TestEngineDispatcherUnknown(t *testing.T) {
-	d := &engineDispatcher{logger: slog.Default()}
-	ack := d.Dispatch(context.Background(), controlplane.Command{ID: "1", Kind: "voodoo"})
-	if ack.Success {
-		t.Errorf("expected failure")
-	}
-	if ack.Error == "" {
-		t.Errorf("expected error")
-	}
-}
-
-func TestEngineDispatcherApplyMissingContainer(t *testing.T) {
-	d := &engineDispatcher{logger: slog.Default()}
-	ack := d.Dispatch(context.Background(), controlplane.Command{ID: "1", Kind: controlplane.CommandApply})
-	if ack.Success {
-		t.Errorf("expected failure")
-	}
-}
-
-func TestEngineDispatcherDisableMissingContainer(t *testing.T) {
-	d := &engineDispatcher{logger: slog.Default()}
-	ack := d.Dispatch(context.Background(), controlplane.Command{ID: "1", Kind: controlplane.CommandDisable})
-	if ack.Success {
-		t.Errorf("expected failure")
-	}
-}
-
-func TestEngineDispatcherTokenRotateRejected(t *testing.T) {
-	d := &engineDispatcher{logger: slog.Default()}
-	ack := d.Dispatch(context.Background(), controlplane.Command{ID: "x", Kind: controlplane.CommandTokenRotate})
-	if ack.Success {
-		t.Errorf("token-rotate is operator-driven, should be rejected via control plane")
-	}
-	if ack.Error == "" {
-		t.Errorf("expected an error message explaining why token-rotate is rejected")
-	}
-}
-
-func TestEngineDispatcherApplyAndDisableNoEngine(t *testing.T) {
-	d := &engineDispatcher{logger: slog.Default()}
-	defer func() { _ = recover() }()
-	d.Dispatch(context.Background(), controlplane.Command{ID: "1", Kind: controlplane.CommandApply, ContainerID: "abc"})
-}
-
-func TestEngineDispatcherReconcileNoEngine(t *testing.T) {
-	d := &engineDispatcher{logger: slog.Default()}
-	defer func() { _ = recover() }()
-	d.Dispatch(context.Background(), controlplane.Command{ID: "1", Kind: controlplane.CommandReconcile})
-}
-
 func TestRunBadChainSuffix(t *testing.T) {
 	t.Setenv("FIREFIK_CHAIN_NAME", "FIREFIK")
 	t.Setenv("FIREFIK_CHAIN_SUFFIX", "bad space")

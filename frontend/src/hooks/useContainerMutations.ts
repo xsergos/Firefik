@@ -19,11 +19,21 @@ function surfaceError(action: string, err: unknown) {
   console.debug(`${action} failed`, err);
 }
 
+type ContainerActionVars = string | { id: string; agent_id?: string };
+
+function unpackActionVars(v: ContainerActionVars): { id: string; agentID?: string } {
+  if (typeof v === "string") return { id: v };
+  return { id: v.id, agentID: v.agent_id };
+}
+
 export function useApplyContainer() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: applyContainerRules,
+  return useMutation<void, unknown, ContainerActionVars>({
+    mutationFn: (v) => {
+      const { id, agentID } = unpackActionVars(v);
+      return applyContainerRules(id, agentID);
+    },
     onSuccess: () => {
       for (const key of invalidateAfterMutation) {
         queryClient.invalidateQueries({ queryKey: key });
@@ -37,8 +47,11 @@ export function useApplyContainer() {
 export function useDeactivateContainer() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: deactivateContainerRules,
+  return useMutation<void, unknown, ContainerActionVars>({
+    mutationFn: (v) => {
+      const { id, agentID } = unpackActionVars(v);
+      return deactivateContainerRules(id, agentID);
+    },
     onSuccess: () => {
       for (const key of invalidateAfterMutation) {
         queryClient.invalidateQueries({ queryKey: key });
@@ -49,10 +62,12 @@ export function useDeactivateContainer() {
   });
 }
 
+type BulkActionWithAgent = BulkAction & { agent_id?: string };
+
 export function useBulkContainers() {
   const queryClient = useQueryClient();
 
-  return useMutation<BulkResponse, unknown, BulkAction[]>({
+  return useMutation<BulkResponse, unknown, BulkActionWithAgent[]>({
     mutationFn: bulkContainerActions,
     onSuccess: (resp, actions) => {
       for (const key of invalidateAfterMutation) {

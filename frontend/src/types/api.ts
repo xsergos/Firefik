@@ -31,9 +31,12 @@ export const containerSchema = z.object({
   labels: z.record(z.string(), z.string()).default({}),
   defaultPolicy: defaultPolicySchema.optional(),
   ruleSets: z.array(firewallRuleSetSchema).optional(),
+  agent_id: z.string().optional(),
+  agent_hostname: z.string().optional(),
+  rule_set_count: z.number().optional(),
 });
 
-export const containerListSchema = z.array(containerSchema);
+export const containerListSchema = z.array(containerSchema).nullable().transform((v) => v ?? []);
 
 export const logEntrySchema = z.object({
   ts: z.string(),
@@ -59,9 +62,12 @@ export const ruleEntrySchema = z.object({
   status: z.string(),
   defaultPolicy: defaultPolicySchema,
   ruleSets: z.array(firewallRuleSetSchema),
+  agent_id: z.string().optional(),
+  agent_hostname: z.string().optional(),
+  rule_set_count: z.number().optional(),
 });
 
-export const ruleEntryListSchema = z.array(ruleEntrySchema);
+export const ruleEntryListSchema = z.array(ruleEntrySchema).nullable().transform((v) => v ?? []);
 
 export const statsResponseSchema = z.object({
   containers: z.object({
@@ -124,8 +130,12 @@ export const policySummarySchema = z.object({
   version: z.string(),
   source: z.string().optional(),
   rules: z.number(),
+  author: z.string().optional(),
+  comment: z.string().optional(),
+  sha: z.string().optional(),
+  committedAt: z.string().optional(),
 });
-export const policySummaryListSchema = z.array(policySummarySchema);
+export const policySummaryListSchema = z.array(policySummarySchema).nullable().transform((v) => v ?? []);
 export type PolicySummary = z.infer<typeof policySummarySchema>;
 
 export const policyDetailSchema = z.object({
@@ -134,6 +144,10 @@ export const policyDetailSchema = z.object({
   source: z.string().optional(),
   dsl: z.string(),
   ruleSets: z.array(firewallRuleSetSchema),
+  author: z.string().optional(),
+  comment: z.string().optional(),
+  sha: z.string().optional(),
+  committedAt: z.string().optional(),
 });
 export type PolicyDetail = z.infer<typeof policyDetailSchema>;
 
@@ -165,8 +179,11 @@ export const autogenProposalSchema = z.object({
   decided_by: z.string().optional(),
   decided_at: z.string().optional(),
   reason: z.string().optional(),
+  agent_id: z.string().optional(),
+  agent_hostname: z.string().optional(),
+  updated_at: z.string().optional(),
 });
-export const autogenProposalListSchema = z.array(autogenProposalSchema);
+export const autogenProposalListSchema = z.array(autogenProposalSchema).nullable().transform((v) => v ?? []);
 export type AutogenProposal = z.infer<typeof autogenProposalSchema>;
 
 export const autogenApproveResponseSchema = z.object({
@@ -188,6 +205,8 @@ export const auditHistoryEventSchema = z.object({
   rule_sets: z.number().optional(),
   default_policy: z.string().optional(),
   metadata: z.record(z.string(), z.string()).optional(),
+  agent_id: z.string().optional(),
+  agent_hostname: z.string().optional(),
 });
-export const auditHistoryListSchema = z.array(auditHistoryEventSchema);
+export const auditHistoryListSchema = z.array(auditHistoryEventSchema).nullable().transform((v) => v ?? []);
 export type AuditHistoryEvent = z.infer<typeof auditHistoryEventSchema>;

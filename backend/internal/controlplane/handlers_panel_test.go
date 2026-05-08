@@ -142,8 +142,9 @@ func TestPoliciesCRUD(t *testing.T) {
 	srv := panelServer(t)
 
 	rec := httptest.NewRecorder()
-	body := bytes.NewBufferString(`{"dsl":"allow tcp dport 80\n","comment":"test"}`)
-	req := httptest.NewRequest(http.MethodPut, "/v1/policies/web", body)
+	dsl := `policy "web" { allow if port == 80 }`
+	body, _ := json.Marshal(map[string]any{"dsl": dsl, "comment": "test"})
+	req := httptest.NewRequest(http.MethodPut, "/v1/policies/web", bytes.NewReader(body))
 	srv.handlePolicy(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("save: %d body=%s", rec.Code, rec.Body.String())
@@ -157,7 +158,7 @@ func TestPoliciesCRUD(t *testing.T) {
 	}
 	var detail policyDetailDTO
 	_ = json.Unmarshal(rec.Body.Bytes(), &detail)
-	if detail.Name != "web" || !strings.Contains(detail.DSL, "dport 80") {
+	if detail.Name != "web" || !strings.Contains(detail.DSL, "port == 80") {
 		t.Fatalf("bad detail: %+v", detail)
 	}
 
@@ -174,8 +175,10 @@ func TestPoliciesCRUD(t *testing.T) {
 func TestPolicyValidate(t *testing.T) {
 	srv := panelServer(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/policies/web/validate",
-		bytes.NewBufferString(`{"dsl":"allow tcp dport 80"}`))
+	dsl := `policy "web" { allow if port == 80 }`
+	body := map[string]any{"dsl": dsl}
+	bs, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/v1/policies/web/validate", bytes.NewReader(bs))
 	srv.handlePolicy(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("validate: %d body=%s", rec.Code, rec.Body.String())
@@ -184,6 +187,205 @@ func TestPolicyValidate(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	if resp["ok"] != true {
 		t.Fatalf("expected ok=true, got %v", resp)
+	}
+}
+
+func TestPolicyValidate_BadDSL(t *testing.T) {
+	srv := panelServer(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/policies/web/validate",
+		bytes.NewBufferString(`{"dsl":"this is not valid policy syntax"}`))
+	srv.handlePolicy(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("validate: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp["ok"] != false {
+		t.Fatalf("expected ok=false on bad DSL, got %v", resp)
+	}
+}
+
+func TestPolicySimulate(t *testing.T) {
+	srv := panelServer(t)
+	dsl := `policy "web" { allow if port == 80 }`
+	rec := httptest.NewRecorder()
+	body, _ := json.Marshal(map[string]any{"dsl": dsl})
+	req := httptest.NewRequest(http.MethodPost, "/v1/policies/web/simulate", bytes.NewReader(body))
+	srv.handlePolicy(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("simulate: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp policySimulateResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if len(resp.RuleSets) == 0 {
+		t.Fatalf("expected at least one rendered ruleset, got %+v", resp)
+	}
+	if resp.DefaultPolicy != "DROP" {
+		t.Fatalf("expected default DROP, got %q", resp.DefaultPolicy)
+	}
+}
+
+func TestPolicySimulate_FallbackToStored(t *testing.T) {
+	srv := panelServer(t)
+	ctx := context.Background()
+	dsl := `policy "web" { allow if port == 443 }`
+	if _, err := srv.Registry.store.SetPolicyVersion(ctx, "web", dsl, "panel", ""); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/policies/web/simulate", bytes.NewBufferString(`{}`))
+	srv.handlePolicy(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp policySimulateResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if len(resp.RuleSets) == 0 {
+		t.Fatalf("expected views from stored DSL: %+v", resp)
+	}
+}
+
+func TestPolicySimulate_NotFound(t *testing.T) {
+	srv := panelServer(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/policies/missing/simulate", bytes.NewBufferString(`{}`))
+	srv.handlePolicy(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+}
+
+func TestContainerAction_Apply_Success(t *testing.T) {
+	srv := panelServer(t)
+	ctx := context.Background()
+	_ = srv.Registry.store.UpsertAgent(ctx, AgentIdentity{InstanceID: "a1"})
+	_ = srv.Registry.store.RecordSnapshot(ctx, AgentSnapshot{
+		Agent:      AgentIdentity{InstanceID: "a1"},
+		Containers: []ContainerState{{ID: "c1deadbeef", Name: "web"}},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/containers/c1deadbeef/apply", bytes.NewBufferString(`{}`))
+	done := make(chan struct{})
+	go func() {
+		srv.handleFleetContainerAction(rec, req)
+		close(done)
+	}()
+
+	for i := 0; i < 50; i++ {
+		srv.Registry.mu.Lock()
+		var cmdID string
+		for _, list := range srv.Registry.commands {
+			for _, c := range list {
+				if c.Kind == CommandApply {
+					cmdID = c.ID
+					break
+				}
+			}
+		}
+		srv.Registry.mu.Unlock()
+		if cmdID != "" {
+			srv.Registry.recordAck(CommandAck{ID: cmdID, Success: true})
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(8 * time.Second):
+		t.Fatal("hung")
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestContainerAction_AgentNotFound(t *testing.T) {
+	srv := panelServer(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/containers/unknown/apply", bytes.NewBufferString(`{}`))
+	srv.handleFleetContainerAction(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestContainerAction_BadAction(t *testing.T) {
+	srv := panelServer(t)
+	ctx := context.Background()
+	_ = srv.Registry.store.UpsertAgent(ctx, AgentIdentity{InstanceID: "a1"})
+	_ = srv.Registry.store.RecordSnapshot(ctx, AgentSnapshot{
+		Agent:      AgentIdentity{InstanceID: "a1"},
+		Containers: []ContainerState{{ID: "c1", Name: "web"}},
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/containers/c1/somethingelse", bytes.NewBufferString(`{}`))
+	srv.handleFleetContainerAction(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+}
+
+func TestContainerBulk_MixedResults(t *testing.T) {
+	srv := panelServer(t)
+	ctx := context.Background()
+	_ = srv.Registry.store.UpsertAgent(ctx, AgentIdentity{InstanceID: "a1"})
+	_ = srv.Registry.store.RecordSnapshot(ctx, AgentSnapshot{
+		Agent:      AgentIdentity{InstanceID: "a1"},
+		Containers: []ContainerState{{ID: "c1deadbeef", Name: "web"}},
+	})
+
+	rec := httptest.NewRecorder()
+	body, _ := json.Marshal(map[string]any{
+		"actions": []map[string]any{
+			{"id": "c1deadbeef", "action": "apply"},
+			{"id": "doesnotexist", "action": "apply"},
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/containers/bulk", bytes.NewReader(body))
+	done := make(chan struct{})
+	go func() {
+		srv.handleFleetContainerAction(rec, req)
+		close(done)
+	}()
+	for i := 0; i < 50; i++ {
+		srv.Registry.mu.Lock()
+		var cmdID string
+		for _, list := range srv.Registry.commands {
+			for _, c := range list {
+				if c.Kind == CommandApply {
+					cmdID = c.ID
+					break
+				}
+			}
+		}
+		srv.Registry.mu.Unlock()
+		if cmdID != "" {
+			srv.Registry.recordAck(CommandAck{ID: cmdID, Success: true})
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	select {
+	case <-done:
+	case <-time.After(8 * time.Second):
+		t.Fatal("hung")
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp fleetContainerBulkResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp.Summary.Total != 2 {
+		t.Errorf("total: %d", resp.Summary.Total)
+	}
+	if resp.Summary.Applied != 1 {
+		t.Errorf("applied: %d", resp.Summary.Applied)
+	}
+	if resp.Summary.Failed != 1 {
+		t.Errorf("failed: %d", resp.Summary.Failed)
 	}
 }
 
@@ -595,7 +797,6 @@ func TestSqliteListAuditEvents(t *testing.T) {
 		t.Fatalf("filter wrong: %+v", filtered)
 	}
 
-	// default limit kicks in
 	none, err := store.ListAuditEvents(ctx, "", 0)
 	if err != nil {
 		t.Fatal(err)

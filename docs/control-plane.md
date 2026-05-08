@@ -249,10 +249,52 @@ token is set (`--token-file` or `FIREFIK_SERVER_TOKEN`):
 | `GET /v1/enrollment-tokens` | List active (unconsumed) enrollment tokens. `?include_used=1` includes consumed/revoked. |
 | `POST /v1/enrollment-tokens` | Issue a one-time enrollment token. Body `{"agent_id": "host-prod-01", "ttl_seconds": 900}`. `agent_id` must match `[a-z0-9-]{3,63}`; TTL defaults to 15 min, capped at 24 h. Returns `201 {"token","agent_id","expires_at","issued_at"}`. The token is single-use — `POST /v1/enroll` consumes it atomically. |
 
+### Fleet-aggregated panel surface
+
+The panel build (`VITE_PANEL_MODE=fleet`) talks directly to the
+control plane, not to a single agent's firefik-back. CP exposes
+fleet-wide reads sourced from the `Registry` store, plus pull-style
+RPC endpoints that round-trip through the existing agent↔CP
+bidi-stream (`Stream(stream AgentEvent) returns (stream ServerCommand)`)
+with a 5 s ack deadline.
+
+| Method + Path | Purpose |
+|---|---|
+| `GET /v1/stats` | Fleet aggregator. Returns `{agents:{total,healthy,stale,dead,unknown}, containers:{total,running,enabled}}` computed over latest snapshots. |
+| `GET /v1/containers` | Flatten of `snapshots[].containers` across the fleet. Each row carries `agent_id`, `agent_hostname`, plus the standard container fields (id/name/status/firewallStatus/defaultPolicy/labels). |
+| `GET /v1/rules` | Same shape as `/v1/containers` but filtered to entries with `firewallStatus == active` or `rule_set_count > 0`. Detailed rule sets are *not* expanded — use `/v1/agents/{id}/snapshot` for per-container detail. |
+| `GET /v1/audit/history?agent_id=&limit=` | Fleet audit log read from `store.audit_events` (which is fed by `AgentEvent.audit` push). Optional `agent_id` filter; `limit` defaults to 100, capped at 1000. |
+| `GET /v1/policies` | List policies in `store.policy_versions` (latest version per name). Includes `sha`, `committedAt`, derived `rules` count via `policy.Compile`. |
+| `GET /v1/policies/{name}` | Single policy detail with parsed `ruleSets` (rendered through `policy.Compile`). |
+| `PUT /v1/policies/{name}` | Save a new version. Body `{"dsl","comment","author"}`. DSL is parsed by `internal/policy.Parse` before commit; rejects with `400` on parse error. |
+| `POST /v1/policies/{name}/validate` | Parse-only DSL validator. Body `{"dsl"}`. Returns `{ok, errors[]}`. |
+| `POST /v1/policies/{name}/simulate` | Render the (request-supplied or stored) DSL through `policy.Compile`. Body `{"dsl,containerID,labels"}`. Returns `{policy, container, defaultPolicy, ruleSets[], warnings[], errors[]}`. |
+| `GET /v1/autogen/proposals` | Read pushed proposals (`AgentEvent.AutogenProposals`) flattened across the fleet, with `agent_id`/`agent_hostname` columns. |
+| `POST /v1/autogen/proposals/{cid}/approve` | Body `{"agent_id","mode":"labels|policy"}`. Enqueues `COMMAND_KIND_AUTOGEN_APPROVE` on the agent, awaits ack with 5 s deadline. On success removes the proposal from CP's store. If `agent_id` omitted, CP resolves it from the proposals table. |
+| `POST /v1/autogen/proposals/{cid}/reject` | Body `{"agent_id","reason"}`. Same flow as approve, with `COMMAND_KIND_AUTOGEN_REJECT`. |
+| `GET /v1/agents/{id}/stats` | Live per-agent stats. CP enqueues `COMMAND_KIND_STATS_COLLECT`; agent's `engineDispatcher` builds `{containers,traffic,rules_active_containers,at}` and acks via `result_payload` (`Struct`). 5 s deadline → `504 Gateway Timeout`. Agent failure → `502 Bad Gateway`. |
+| `POST /v1/containers/{id}/apply` | Enqueue `COMMAND_KIND_APPLY` for the containing agent, await ack (5 s). Body `{"agent_id"}` optional — CP can resolve from snapshots. |
+| `POST /v1/containers/{id}/disable` | Same as apply, with `COMMAND_KIND_DISABLE`. |
+| `POST /v1/containers/bulk` | Body `{"actions":[{"id","action","agent_id?"}]}`. Multi-target, returns `{results, summary{total,applied,disabled,failed}}`. |
+| `GET /v1/logs?agent_id=` | **WebSocket** — multiplexed log tail from `Registry.logHub` across the whole fleet. `agent_id` query param filters to one agent; omitted = all. |
+
 All routes require `Authorization: Bearer <token>`. The agent-side
 firefik-back exposes proxy endpoints under `/api/templates*` and
-`/api/approvals*` — UI talks to firefik-back, which forwards
-operator's bearer onto firefik-server.
+`/api/approvals*` — single-agent UI talks to firefik-back, which
+forwards operator's bearer onto firefik-server. The panel build
+(`VITE_PANEL_MODE=fleet`) bypasses firefik-back entirely and proxies
+`/api/*` straight to CP via Caddy (`Caddyfile.panel`).
+
+#### Pull-style RPC contract via the existing bidi stream
+
+The new ack-bearing commands re-use the agent↔CP `Stream` channel:
+
+1. CP HTTP handler enqueues a `Command` via `Registry.Enqueue(agentID, cmd)` and registers a waiter in `Registry.ackWaiters[cmd.ID]`.
+2. Agent's `GRPCClient` polls and dispatches the command through `engineDispatcher.Dispatch`. The dispatcher returns a `CommandAck` with `Success` and an optional `result_payload` (Go `map[string]any` ↔ proto `Struct`).
+3. Agent's `Ack(CommandAck)` lands at CP's `Registry.recordAck`, which signals the waiter channel.
+4. The HTTP handler unblocks (or hits its 5 s deadline → `504`).
+
+This is how `STATS_COLLECT`, `AUTOGEN_APPROVE`, `AUTOGEN_REJECT`, and the new `APPLY`/`DISABLE` panel routes round-trip without a second TCP listener on the agent.
 
 ### Approval audit fan-out
 

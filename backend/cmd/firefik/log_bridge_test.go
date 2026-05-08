@@ -17,7 +17,7 @@ func TestStringifyMap(t *testing.T) {
 		"port":     float64(443),
 		"enabled":  true,
 		"disabled": false,
-		"ignore":   []int{1, 2}, // unsupported -> dropped
+		"ignore":   []int{1, 2},
 		"nilv":     nil,
 	}
 	out := stringifyMap(in)

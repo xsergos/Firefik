@@ -142,7 +142,7 @@ describe("ProposalsPage", () => {
     await user.click(screen.getByRole("button", { name: /Approve → labels/i }));
     const api = await import("@/lib/api");
     await waitFor(() =>
-      expect(api.approveAutogen).toHaveBeenCalledWith(pendingHigh.container_id, "labels"),
+      expect(api.approveAutogen).toHaveBeenCalledWith(pendingHigh.container_id, "labels", undefined),
     );
     await waitFor(() =>
       expect(screen.getByText(/docker-compose labels/i)).toBeInTheDocument(),
@@ -164,7 +164,7 @@ describe("ProposalsPage", () => {
 
     await user.click(screen.getByRole("button", { name: /Approve → policy snippet/i }));
     await waitFor(() =>
-      expect(api.approveAutogen).toHaveBeenCalledWith(pendingHigh.container_id, "policy"),
+      expect(api.approveAutogen).toHaveBeenCalledWith(pendingHigh.container_id, "policy", undefined),
     );
     await waitFor(() => expect(screen.getByText(/policy DSL/i)).toBeInTheDocument());
   });
@@ -179,7 +179,7 @@ describe("ProposalsPage", () => {
     await user.click(screen.getByRole("button", { name: "Reject" }));
     const api = await import("@/lib/api");
     await waitFor(() =>
-      expect(api.rejectAutogen).toHaveBeenCalledWith(pendingHigh.container_id),
+      expect(api.rejectAutogen).toHaveBeenCalledWith(pendingHigh.container_id, undefined, undefined),
     );
   });
 

@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { isPanelMode } from "@/lib/panelMode";
 import {
   apiErrorSchema,
   auditHistoryListSchema,
@@ -167,19 +168,21 @@ export function wsLogsUrl(filter?: string): string {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     base = `${proto}//${location.host}`;
   }
-  return filter ? `${base}/ws/logs?filter=${encodeURIComponent(filter)}` : `${base}/ws/logs`;
+  const path = isPanelMode ? "/api/logs" : "/ws/logs";
+  if (filter) return `${base}${path}?filter=${encodeURIComponent(filter)}`;
+  return `${base}${path}`;
 }
 
-export async function applyContainerRules(id: string): Promise<void> {
-  await rawPOST(`/api/containers/${id}/apply`);
+export async function applyContainerRules(id: string, agentID?: string): Promise<void> {
+  await rawPOST(`/api/containers/${id}/apply`, agentID ? { agent_id: agentID } : undefined);
 }
 
-export async function deactivateContainerRules(id: string): Promise<void> {
-  await rawPOST(`/api/containers/${id}/disable`);
+export async function deactivateContainerRules(id: string, agentID?: string): Promise<void> {
+  await rawPOST(`/api/containers/${id}/disable`, agentID ? { agent_id: agentID } : undefined);
 }
 
 export async function bulkContainerActions(
-  actions: BulkAction[],
+  actions: (BulkAction & { agent_id?: string })[],
 ): Promise<BulkResponse> {
   const res = await fetch(`${BASE_URL}/api/containers/bulk`, {
     method: "POST",
@@ -277,13 +280,16 @@ export function fetchAutogenProposals(
 export async function approveAutogen(
   containerID: string,
   mode: "labels" | "policy",
+  agentID?: string,
 ): Promise<AutogenApproveResponse> {
+  const reqBody: Record<string, unknown> = { mode };
+  if (agentID) reqBody.agent_id = agentID;
   const res = await fetch(
     `${BASE_URL}/api/autogen/proposals/${encodeURIComponent(containerID)}/approve`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ mode }),
+      body: JSON.stringify(reqBody),
     },
   );
   if (!res.ok) {
@@ -299,13 +305,19 @@ export async function approveAutogen(
   return out.data;
 }
 
-export async function rejectAutogen(containerID: string, reason?: string): Promise<void> {
+export async function rejectAutogen(
+  containerID: string,
+  reason?: string,
+  agentID?: string,
+): Promise<void> {
+  const reqBody: Record<string, unknown> = { reason: reason ?? "" };
+  if (agentID) reqBody.agent_id = agentID;
   const res = await fetch(
     `${BASE_URL}/api/autogen/proposals/${encodeURIComponent(containerID)}/reject`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ reason: reason ?? "" }),
+      body: JSON.stringify(reqBody),
     },
   );
   if (!res.ok) {
@@ -317,8 +329,13 @@ export async function rejectAutogen(containerID: string, reason?: string): Promi
   }
 }
 
-async function rawPOST(path: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}${path}`, { method: "POST" });
+async function rawPOST(path: string, body?: unknown): Promise<void> {
+  const init: RequestInit = { method: "POST" };
+  if (body !== undefined) {
+    init.headers = { "Content-Type": "application/json" };
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(`${BASE_URL}${path}`, init);
   if (!res.ok) {
     const parsed = await res.json().then((b) => apiErrorSchema.safeParse(b)).catch(() => null);
     if (parsed && parsed.success) {
