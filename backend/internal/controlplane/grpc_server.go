@@ -344,7 +344,6 @@ func copyLabels(in map[string]string) map[string]string {
 	return out
 }
 
-
 func toNativeAutogenProposals(in *pb.AutogenProposals) []AutogenProposal {
 	if in == nil || in.Agent == nil {
 		return nil

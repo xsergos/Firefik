@@ -61,12 +61,12 @@ type LogLine struct {
 }
 
 type AutogenProposal struct {
-	AgentID     string   `json:"agent_id"`
-	ContainerID string   `json:"container_id"`
-	Ports       []uint32 `json:"ports"`
-	Peers       []string `json:"peers"`
-	ObservedFor string   `json:"observed_for,omitempty"`
-	Confidence  string   `json:"confidence,omitempty"`
+	AgentID     string    `json:"agent_id"`
+	ContainerID string    `json:"container_id"`
+	Ports       []uint32  `json:"ports"`
+	Peers       []string  `json:"peers"`
+	ObservedFor string    `json:"observed_for,omitempty"`
+	Confidence  string    `json:"confidence,omitempty"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 

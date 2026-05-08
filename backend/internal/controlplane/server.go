@@ -168,7 +168,6 @@ func (r *Registry) RecordSnapshot(snap AgentSnapshot) {
 	}
 }
 
-
 func (r *Registry) WaitForAck(ctx context.Context, commandID string, timeout time.Duration) (CommandAck, error) {
 	r.mu.Lock()
 	if a, ok := r.acks[commandID]; ok {

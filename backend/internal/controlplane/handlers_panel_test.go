@@ -806,34 +806,6 @@ func TestSqliteListAuditEvents(t *testing.T) {
 	}
 }
 
-func TestToNativeAutogenProposals_Roundtrip(t *testing.T) {
-	src := []AutogenProposal{
-		{ContainerID: "c1", Ports: []uint32{80}, Peers: []string{"10.0.0.1/32"}, ObservedFor: "2h", Confidence: "high"},
-	}
-	pbItems := make([]struct {
-		ContainerId string
-		Ports       []uint32
-		Peers       []string
-		ObservedFor string
-		Confidence  string
-	}, 0, len(src))
-	for _, p := range src {
-		pbItems = append(pbItems, struct {
-			ContainerId string
-			Ports       []uint32
-			Peers       []string
-			ObservedFor string
-			Confidence  string
-		}{
-			ContainerId: p.ContainerID,
-			Ports:       p.Ports,
-			Peers:       p.Peers,
-			ObservedFor: p.ObservedFor,
-			Confidence:  p.Confidence,
-		})
-	}
-}
-
 func TestAgentLoop_WithProposalSource(t *testing.T) {
 	loop := &AgentLoop{}
 	stub := &stubProposalSource{items: []AutogenProposal{{ContainerID: "c"}}}

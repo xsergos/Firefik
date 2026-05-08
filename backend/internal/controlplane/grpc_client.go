@@ -160,7 +160,6 @@ func (c *GRPCClient) SendHeartbeat() error {
 	})
 }
 
-
 func (c *GRPCClient) SendAutogenProposals(items []AutogenProposal) error {
 	if len(items) == 0 {
 		return nil

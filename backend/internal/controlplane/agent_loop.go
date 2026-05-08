@@ -29,7 +29,6 @@ type LogForwardSource interface {
 	Logs() <-chan LogLine
 }
 
-
 type AutogenProposalSource interface {
 	Proposals(ctx context.Context) []AutogenProposal
 }
@@ -70,7 +69,6 @@ func (l *AgentLoop) WithLogSource(s LogForwardSource) *AgentLoop {
 	l.logSource = s
 	return l
 }
-
 
 func (l *AgentLoop) WithProposalSource(s AutogenProposalSource) *AgentLoop {
 	l.proposalSource = s

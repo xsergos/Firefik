@@ -751,7 +751,6 @@ func (s *sqliteStore) PruneCertRenewHistory(ctx context.Context, serials []strin
 	return tx.Commit()
 }
 
-
 func (s *sqliteStore) RecordProposals(ctx context.Context, items []AutogenProposal) error {
 	if len(items) == 0 {
 		return nil

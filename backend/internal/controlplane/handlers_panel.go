@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"net"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -346,15 +346,15 @@ type policySummaryDTO struct {
 }
 
 type policyDetailDTO struct {
-	Name        string                       `json:"name"`
-	Version     string                       `json:"version"`
-	Source      string                       `json:"source,omitempty"`
-	DSL         string                       `json:"dsl"`
+	Name        string        `json:"name"`
+	Version     string        `json:"version"`
+	Source      string        `json:"source,omitempty"`
+	DSL         string        `json:"dsl"`
 	RuleSets    []ruleSetView `json:"ruleSets"`
-	Author      string                       `json:"author,omitempty"`
-	Comment     string                       `json:"comment,omitempty"`
-	SHA         string                       `json:"sha"`
-	CommittedAt time.Time                    `json:"committedAt"`
+	Author      string        `json:"author,omitempty"`
+	Comment     string        `json:"comment,omitempty"`
+	SHA         string        `json:"sha"`
+	CommittedAt time.Time     `json:"committedAt"`
 }
 
 type policyValidateRequest struct {
@@ -380,13 +380,13 @@ type policySimulateRequest struct {
 }
 
 type policySimulateResponse struct {
-	Policy        string                       `json:"policy"`
-	Container     string                       `json:"container,omitempty"`
-	DefaultPolicy string                       `json:"defaultPolicy,omitempty"`
-	RuleSets      []ruleSetView `json:"ruleSets"`
-	Warnings      []string                     `json:"warnings,omitempty"`
-	Errors        []string                     `json:"errors,omitempty"`
-	LabelsSeen    map[string]string            `json:"labelsSeen,omitempty"`
+	Policy        string            `json:"policy"`
+	Container     string            `json:"container,omitempty"`
+	DefaultPolicy string            `json:"defaultPolicy,omitempty"`
+	RuleSets      []ruleSetView     `json:"ruleSets"`
+	Warnings      []string          `json:"warnings,omitempty"`
+	Errors        []string          `json:"errors,omitempty"`
+	LabelsSeen    map[string]string `json:"labelsSeen,omitempty"`
 }
 
 func (s *HTTPServer) handlePoliciesIndex(w http.ResponseWriter, r *http.Request) {
