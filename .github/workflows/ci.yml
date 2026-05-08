@@ -11,8 +11,18 @@ permissions:
 
 jobs:
   backend-test:
-    name: Backend tests
-    runs-on: ubuntu-latest
+    name: Backend tests (${{ matrix.runner.arch }})
+    runs-on: ${{ matrix.runner.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - os: ubuntu-latest
+            arch: amd64
+            cover_gate: true
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            cover_gate: false
     defaults:
       run:
         working-directory: backend
@@ -27,10 +37,15 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      - name: go test + cover-gate
+      - name: go test + cover-gate (amd64)
+        if: matrix.runner.cover_gate
         env:
           COVER_THRESHOLD: "85.0"
         run: make cover-gate
+
+      - name: go test (arm64 — verify cross-arch correctness)
+        if: ${{ !matrix.runner.cover_gate }}
+        run: go test -count=1 -timeout=10m ./...
 
   backend-quality:
     name: Backend quality
@@ -141,8 +156,8 @@ jobs:
         run: npm run build
 
   docker-images:
-    name: Docker / ${{ matrix.image.name }}
-    runs-on: ubuntu-latest
+    name: Docker / ${{ matrix.image.name }} (${{ matrix.runner.arch }})
+    runs-on: ${{ matrix.runner.os }}
     needs: [backend-test, frontend]
     permissions:
       contents: read
@@ -151,44 +166,46 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        runner:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
         image:
           - name: backend
             context: backend
             tag: firefik-back:ci
             extra_build_args: ""
-            sbom: true
           - name: frontend
             context: frontend
             tag: firefik-front:ci
             extra_build_args: ""
-            sbom: false
           - name: panel
             context: frontend
             tag: firefik-panel:ci
             extra_build_args: |
               VITE_PANEL_MODE=fleet
               CADDY_CONFIG=Caddyfile.panel
-            sbom: false
     steps:
       - uses: actions/checkout@v6
 
       - uses: docker/setup-buildx-action@v4
 
-      - name: Build ${{ matrix.image.name }} image
+      - name: Build ${{ matrix.image.name }} image (${{ matrix.runner.arch }})
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.image.context }}
           push: false
           load: true
-          tags: ${{ matrix.image.tag }}
+          tags: ${{ matrix.image.tag }}-${{ matrix.runner.arch }}
           build-args: ${{ matrix.image.extra_build_args }}
-          cache-from: type=gha,scope=${{ matrix.image.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
+          cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.runner.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}-${{ matrix.runner.arch }}
 
-      - name: Trivy scan ${{ matrix.image.name }}
+      - name: Trivy scan ${{ matrix.image.name }} (${{ matrix.runner.arch }})
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ matrix.image.tag }}
+          image-ref: ${{ matrix.image.tag }}-${{ matrix.runner.arch }}
           format: table
           severity: HIGH,CRITICAL
           exit-code: 0
@@ -196,10 +213,10 @@ jobs:
           cache: "true"
 
       - name: Generate SBOM (CycloneDX)
-        if: matrix.image.sbom
+        if: matrix.image.name == 'backend' && matrix.runner.arch == 'amd64'
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ matrix.image.tag }}
+          image: ${{ matrix.image.tag }}-${{ matrix.runner.arch }}
           format: cyclonedx-json
           output-file: ${{ matrix.image.name }}-sbom.json
           upload-artifact: true
