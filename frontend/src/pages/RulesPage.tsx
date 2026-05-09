@@ -35,7 +35,7 @@ export default function RulesPage() {
           See the{" "}
           <a
             className="underline"
-            href="https://github.com/anthropics/firefik#docker-labels"
+            href="https://github.com/xsergos/firefik#docker-labels"
             target="_blank"
             rel="noopener noreferrer"
           >

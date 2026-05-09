@@ -46,3 +46,4 @@ Thumbs.db
 # maintainer-only docs (roadmap, release checklist, design notes, changelog)
 dev-docs/
 CHANGELOG.md
+TODO*

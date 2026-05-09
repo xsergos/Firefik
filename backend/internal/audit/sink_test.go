@@ -98,7 +98,7 @@ func (nopWriter) Close() error { return nil }
 
 func TestCEFSink_RenderShape(t *testing.T) {
 	buf := &bytes.Buffer{}
-	sink := &cefSink{w: nopWriter{Writer: buf}, vendor: "Anthropic", product: "Firefik", version: "test"}
+	sink := &cefSink{w: nopWriter{Writer: buf}, vendor: "xsergos", product: "Firefik", version: "test"}
 	ev := Event{
 		Timestamp:     time.Unix(0, 0).UTC(),
 		Action:        "apply",
@@ -113,7 +113,7 @@ func TestCEFSink_RenderShape(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	out := buf.String()
-	if !strings.HasPrefix(out, "CEF:0|Anthropic|Firefik|test|apply|apply|") {
+	if !strings.HasPrefix(out, "CEF:0|xsergos|Firefik|test|apply|apply|") {
 		t.Fatalf("unexpected CEF prefix: %q", out)
 	}
 	if !strings.Contains(out, "cs2=abcdef012345") {

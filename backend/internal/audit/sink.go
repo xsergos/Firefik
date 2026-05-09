@@ -137,7 +137,7 @@ func NewCEFFileSink(path, version string, rot RotationConfig) (Sink, error) {
 	}
 	return &cefSink{
 		w:       w,
-		vendor:  "Anthropic",
+		vendor:  "xsergos",
 		product: "Firefik",
 		version: version,
 	}, nil
