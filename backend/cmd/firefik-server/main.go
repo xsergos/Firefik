@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -73,7 +74,8 @@ func run() error {
 	clientCA := flag.String("client-ca", "", "client CA bundle (PEM) for gRPC mTLS; defaults to embedded mini-CA root+issuing")
 	caStateDir := flag.String("ca-state-dir", defaultCAStateDir(), "embedded mini-CA state dir (empty disables /v1/enroll)")
 	trustDomain := flag.String("trust-domain", trustDomainFromEnv(), "SPIFFE trust domain (enables SAN verification when set)")
-	tokenFile := flag.String("token-file", "", "shared bearer token file for agent auth")
+	tokenFile := flag.String("token-file", "", "DEPRECATED: shared bearer token file; used as operator token AND legacy agent bearer if --operator-token-file is empty. Prefer --operator-token-file + panel-issued agent tokens.")
+	operatorTokenFile := flag.String("operator-token-file", "", "Operator HTTP bearer token file (replaces --token-file). Agent gRPC auth uses panel-issued tokens stored in the CP database.")
 	dbPath := flag.String("db", defaultDBPath(), "sqlite path; empty or ':memory:' means in-memory")
 	commandTTL := flag.Duration("command-ttl", 24*time.Hour, "pending commands older than this are expired")
 	auditRetention := flag.Duration("audit-retention", 90*24*time.Hour, "audit rows older than this are purged")
@@ -104,9 +106,19 @@ func run() error {
 		}()
 	}
 
-	token, err := loadServerToken(*tokenFile)
+	legacyToken, err := loadServerToken(*tokenFile)
 	if err != nil {
 		return err
+	}
+	operatorToken, err := loadOperatorToken(*operatorTokenFile)
+	if err != nil {
+		return err
+	}
+	if operatorToken == "" {
+		operatorToken = legacyToken
+	}
+	if legacyToken != "" {
+		logger.Warn("--token-file (or FIREFIK_SERVER_TOKEN) is deprecated; migrate to --operator-token-file for HTTP and panel-issued agent tokens for gRPC")
 	}
 
 	var ca *mca.CA
@@ -169,14 +181,15 @@ func run() error {
 
 	var enrollHandler controlplane.EnrollHandler
 	if ca != nil {
-		enrollHandler = makeEnrollHandler(ca, token, store, logger)
+		enrollHandler = makeEnrollHandler(ca, operatorToken, store, logger)
 	}
 
 	srv := &controlplane.HTTPServer{
-		EnrollHandle: enrollHandler,
-		Registry:     registry,
-		Token:        token,
-		Audit:        auditFanOut,
+		EnrollHandle:  enrollHandler,
+		Registry:      registry,
+		Token:         legacyToken,
+		OperatorToken: operatorToken,
+		Audit:         auditFanOut,
 	}
 
 	httpSrv := &http.Server{
@@ -220,7 +233,8 @@ func run() error {
 		"trust_domain", *trustDomain,
 		"enroll", ca != nil,
 		"auto_server_cert", autoServerCert,
-		"token_required", token != "",
+		"operator_token_required", operatorToken != "",
+		"legacy_token_set", legacyToken != "",
 		"db", *dbPath,
 	)
 
@@ -257,13 +271,13 @@ func run() error {
 			serverOpts = append(serverOpts, grpc.Creds(credentials.NewTLS(grpcTLS)))
 		}
 		serverOpts = append(serverOpts,
-			grpc.UnaryInterceptor(unaryAuth(token)),
-			grpc.StreamInterceptor(streamAuth(token)),
+			grpc.UnaryInterceptor(unaryAuth(legacyToken, store)),
+			grpc.StreamInterceptor(streamAuth(legacyToken, store)),
 		)
 		gs := grpc.NewServer(serverOpts...)
 		grpcSvc := &controlplane.GRPCServer{
 			Registry:         registry,
-			Token:            token,
+			Token:            legacyToken,
 			Logger:           logger,
 			TrustDomain:      *trustDomain,
 			RenewWindow:      *renewWindow,
@@ -310,17 +324,20 @@ var bearerExemptMethods = map[string]struct{}{
 	"/firefik.controlplane.v1.ControlPlane/RenewCert": {},
 }
 
-func unaryAuth(token string) grpc.UnaryServerInterceptor {
+func unaryAuth(legacyToken string, store controlplane.Store) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if info != nil {
 			if _, exempt := bearerExemptMethods[info.FullMethod]; exempt {
 				return handler(ctx, req)
 			}
 		}
-		if err := checkBearer(ctx, token); err != nil {
+		bearer, err := authenticateBearer(ctx, legacyToken, store)
+		if err != nil {
 			return nil, err
 		}
-		return handler(controlplane.WithBearer(ctx, token), req)
+		ctx = controlplane.WithBearer(ctx, bearer)
+		ctx = controlplane.WithBearerValidated(ctx)
+		return handler(ctx, req)
 	}
 }
 
@@ -331,28 +348,67 @@ type wrappedServerStream struct {
 
 func (w *wrappedServerStream) Context() context.Context { return w.ctx }
 
-func streamAuth(token string) grpc.StreamServerInterceptor {
+func streamAuth(legacyToken string, store controlplane.Store) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if err := checkBearer(ss.Context(), token); err != nil {
+		bearer, err := authenticateBearer(ss.Context(), legacyToken, store)
+		if err != nil {
 			return err
 		}
-		return handler(srv, &wrappedServerStream{ServerStream: ss, ctx: controlplane.WithBearer(ss.Context(), token)})
+		ctx := controlplane.WithBearer(ss.Context(), bearer)
+		ctx = controlplane.WithBearerValidated(ctx)
+		return handler(srv, &wrappedServerStream{ServerStream: ss, ctx: ctx})
 	}
 }
 
-func checkBearer(ctx context.Context, expected string) error {
+func authenticateBearer(ctx context.Context, legacyToken string, store controlplane.Store) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return status.Error(codes.Unauthenticated, "no metadata")
+		if legacyToken == "" && store == nil {
+			return "", nil
+		}
+		return "", status.Error(codes.Unauthenticated, "no metadata")
 	}
 	values := md.Get("authorization")
 	if len(values) == 0 {
-		return status.Error(codes.Unauthenticated, "authorization missing")
+		if legacyToken == "" && store == nil {
+			return "", nil
+		}
+		return "", status.Error(codes.Unauthenticated, "authorization missing")
 	}
-	if values[0] != "Bearer "+expected {
-		return status.Error(codes.Unauthenticated, "invalid bearer token")
+	header := values[0]
+	const prefix = "Bearer "
+	if len(header) <= len(prefix) || header[:len(prefix)] != prefix {
+		return "", status.Error(codes.Unauthenticated, "authorization must be 'Bearer <token>'")
 	}
-	return nil
+	plaintext := header[len(prefix):]
+	if legacyToken != "" && plaintext == legacyToken {
+		return plaintext, nil
+	}
+	if store != nil {
+		tok, verr := store.ValidateAgentToken(ctx, plaintext)
+		if verr == nil {
+			_ = store.TouchAgentToken(ctx, tok.ID, peerIPFromContext(ctx))
+			return plaintext, nil
+		}
+		if !errors.Is(verr, controlplane.ErrAgentTokenUnknown) && !errors.Is(verr, controlplane.ErrAgentTokenRevoked) {
+			return "", status.Error(codes.Internal, "agent token validation error")
+		}
+	}
+	if legacyToken == "" && store == nil {
+		return plaintext, nil
+	}
+	return "", status.Error(codes.Unauthenticated, "invalid bearer token")
+}
+
+func peerIPFromContext(ctx context.Context) string {
+	if p, ok := peer.FromContext(ctx); ok && p != nil && p.Addr != nil {
+		host, _, err := net.SplitHostPort(p.Addr.String())
+		if err == nil {
+			return host
+		}
+		return p.Addr.String()
+	}
+	return ""
 }
 
 func defaultDBPath() string {
@@ -518,6 +574,20 @@ func loadServerToken(path string) (string, error) {
 		return strings.TrimSpace(string(b)), nil
 	}
 	if v := os.Getenv("FIREFIK_SERVER_TOKEN"); v != "" {
+		return strings.TrimSpace(v), nil
+	}
+	return "", nil
+}
+
+func loadOperatorToken(path string) (string, error) {
+	if path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("read operator-token-file: %w", err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	if v := os.Getenv("FIREFIK_SERVER_OPERATOR_TOKEN"); v != "" {
 		return strings.TrimSpace(v), nil
 	}
 	return "", nil

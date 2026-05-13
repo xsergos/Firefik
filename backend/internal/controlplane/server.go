@@ -253,10 +253,11 @@ type AuditEmitter interface {
 }
 
 type HTTPServer struct {
-	EnrollHandle EnrollHandler
-	Registry     *Registry
-	Token        string
-	Audit        AuditEmitter
+	EnrollHandle  EnrollHandler
+	Registry      *Registry
+	Token         string
+	OperatorToken string
+	Audit         AuditEmitter
 }
 
 func (s *HTTPServer) Handler() http.Handler {
@@ -284,6 +285,8 @@ func (s *HTTPServer) Handler() http.Handler {
 		mux.HandleFunc("/v1/policies/", s.requireBearer(s.handlePolicy))
 		mux.HandleFunc("/v1/autogen/proposals", s.requireBearer(s.handleAutogenProposals))
 		mux.HandleFunc("/v1/autogen/proposals/", s.requireBearer(s.handleAutogenAction))
+		mux.HandleFunc("/v1/agent-tokens", s.requireBearer(s.handleAgentTokens))
+		mux.HandleFunc("/v1/agent-tokens/", s.requireBearer(s.handleAgentTokenItem))
 		if s.Registry.LogHub() != nil {
 			mux.HandleFunc("/v1/logs", s.requireBearer(s.handleFleetLogsWS))
 		}
@@ -291,9 +294,17 @@ func (s *HTTPServer) Handler() http.Handler {
 	return mux
 }
 
+func (s *HTTPServer) operatorBearer() string {
+	if s.OperatorToken != "" {
+		return s.OperatorToken
+	}
+	return s.Token
+}
+
 func (s *HTTPServer) requireBearer(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.Token != "" && r.Header.Get("Authorization") != "Bearer "+s.Token {
+		expected := s.operatorBearer()
+		if expected != "" && r.Header.Get("Authorization") != "Bearer "+expected {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

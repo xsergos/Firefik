@@ -17,6 +17,7 @@ import ApprovalsPage from "@/pages/ApprovalsPage";
 import FleetPage from "@/pages/FleetPage";
 import AgentDetailPage from "@/pages/AgentDetailPage";
 import AddAgentPage from "@/pages/AddAgentPage";
+import AgentTokensPage from "@/pages/AgentTokensPage";
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
               <Route path="fleet" element={<ErrorBoundary><FleetPage /></ErrorBoundary>} />
               <Route path="fleet/add" element={<ErrorBoundary><AddAgentPage /></ErrorBoundary>} />
               <Route path="fleet/:id" element={<ErrorBoundary><AgentDetailPage /></ErrorBoundary>} />
+              <Route path="agent-tokens" element={<ErrorBoundary><AgentTokensPage /></ErrorBoundary>} />
             </Route>
           </Routes>
         </BrowserRouter>

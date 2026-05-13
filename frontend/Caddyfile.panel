@@ -18,7 +18,7 @@
         uri strip_prefix /api
         rewrite * /v1{uri}
         reverse_proxy https://controlplane:8443 {
-            header_up Authorization "Bearer {env.FIREFIK_CP_TOKEN}"
+            header_up Authorization "Bearer {env.FIREFIK_OPERATOR_TOKEN}"
             transport http {
                 tls
                 tls_insecure_skip_verify

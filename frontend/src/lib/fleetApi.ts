@@ -183,3 +183,44 @@ export type AgentLiveStats = z.infer<typeof agentLiveStatsSchema>;
 export function fetchAgentStats(id: string): Promise<AgentLiveStats> {
   return getJSON(`/api/agents/${encodeURIComponent(id)}/stats`, agentLiveStatsSchema);
 }
+
+const agentTokenSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional().default(""),
+  issued_by: z.string(),
+  issued_at: z.string(),
+  last_used_at: z.string().nullable().optional(),
+  last_used_ip: z.string().optional().default(""),
+  revoked_at: z.string().nullable().optional(),
+});
+
+const agentTokenIssuedSchema = agentTokenSchema.extend({
+  token: z.string(),
+});
+
+export type AgentTokenRecord = z.infer<typeof agentTokenSchema>;
+export type AgentTokenIssued = z.infer<typeof agentTokenIssuedSchema>;
+
+export function fetchAgentTokens(includeRevoked = false): Promise<AgentTokenRecord[]> {
+  const qs = includeRevoked ? "?include_revoked=1" : "";
+  return getJSON(
+    `/api/agent-tokens${qs}`,
+    z.array(agentTokenSchema).nullable().transform((v) => v ?? []),
+  );
+}
+
+export function createAgentToken(name: string, description?: string): Promise<AgentTokenIssued> {
+  return postJSON(`/api/agent-tokens`, { name, description }, agentTokenIssuedSchema);
+}
+
+export async function revokeAgentToken(id: string): Promise<void> {
+  const res = await fetch(`/api/agent-tokens/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new FleetAPIError(res.status, text || `${res.status}`);
+  }
+}

@@ -34,6 +34,7 @@ export function AppShell() {
       ? [
           { to: "/templates", label: t("nav.templates", "Templates") },
           { to: "/approvals", label: t("nav.approvals", "Approvals") },
+          { to: "/agent-tokens", label: t("nav.agentTokens", "Agent tokens") },
         ]
       : []),
     { to: "/logs", label: t("nav.logs") },

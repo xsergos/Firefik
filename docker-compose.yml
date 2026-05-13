@@ -142,7 +142,7 @@ services:
     ports:
       - "${FIREFIK_PANEL_PORT:-8090}:80"
     environment:
-      FIREFIK_CP_TOKEN: "${FIREFIK_CP_TOKEN:-}"
+      FIREFIK_OPERATOR_TOKEN: "${FIREFIK_OPERATOR_TOKEN:-${FIREFIK_CP_TOKEN:-}}"
     read_only: true
     tmpfs:
       - /tmp:rw,size=16m,mode=1777
@@ -176,7 +176,7 @@ services:
       - "--ca-state-dir=/var/lib/firefik-server/ca"
       - "--db=/var/lib/firefik-server/firefik.db"
       - "--trust-domain=${FIREFIK_CP_TRUST_DOMAIN:-spiffe://firefik.local/}"
-      - "--token-file=/run/secrets/firefik_cp_token"
+      - "--operator-token-file=/run/secrets/firefik_cp_operator_token"
     ports:
       - "${FIREFIK_CP_HTTP_PORT:-8443}:8443"
       - "${FIREFIK_CP_GRPC_PORT:-8444}:8444"
@@ -184,7 +184,7 @@ services:
       - firefik-controlplane-data:/var/lib/firefik-server
       - firefik-controlplane-ca:/var/lib/firefik-server/ca
     secrets:
-      - firefik_cp_token
+      - firefik_cp_operator_token
     environment:
       FIREFIK_CP_TRUST_DOMAIN: "${FIREFIK_CP_TRUST_DOMAIN:-spiffe://firefik.local/}"
       FIREFIK_WEBHOOK_URL: "${FIREFIK_WEBHOOK_URL:-}"
@@ -205,5 +205,5 @@ services:
       - controlplane
 
 secrets:
-  firefik_cp_token:
-    environment: FIREFIK_CP_TOKEN
+  firefik_cp_operator_token:
+    environment: FIREFIK_OPERATOR_TOKEN

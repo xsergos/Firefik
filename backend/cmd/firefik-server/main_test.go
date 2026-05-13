@@ -160,14 +160,14 @@ func TestBuildTLSConfigsWithTrustDomain(t *testing.T) {
 }
 
 func TestCheckBearerNoMetadata(t *testing.T) {
-	if err := checkBearer(context.Background(), "tok"); err == nil {
+	if _, err := authenticateBearer(context.Background(), "tok", nil); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestCheckBearerNoAuthHeader(t *testing.T) {
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.MD{})
-	if err := checkBearer(ctx, "tok"); err == nil {
+	if _, err := authenticateBearer(ctx, "tok", nil); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -175,7 +175,7 @@ func TestCheckBearerNoAuthHeader(t *testing.T) {
 func TestCheckBearerWrong(t *testing.T) {
 	md := metadata.New(map[string]string{"authorization": "Bearer wrong"})
 	ctx := metadata.NewIncomingContext(context.Background(), md)
-	if err := checkBearer(ctx, "tok"); err == nil {
+	if _, err := authenticateBearer(ctx, "tok", nil); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -183,7 +183,7 @@ func TestCheckBearerWrong(t *testing.T) {
 func TestCheckBearerOK(t *testing.T) {
 	md := metadata.New(map[string]string{"authorization": "Bearer tok"})
 	ctx := metadata.NewIncomingContext(context.Background(), md)
-	if err := checkBearer(ctx, "tok"); err != nil {
+	if _, err := authenticateBearer(ctx, "tok", nil); err != nil {
 		t.Fatalf("err: %v", err)
 	}
 }
@@ -193,14 +193,14 @@ func TestUnaryAuthOK(t *testing.T) {
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 	called := false
 	handler := func(ctx context.Context, req any) (any, error) { called = true; return "ok", nil }
-	resp, err := unaryAuth("x")(ctx, nil, nil, handler)
+	resp, err := unaryAuth("x", nil)(ctx, nil, nil, handler)
 	if err != nil || !called || resp != "ok" {
 		t.Errorf("unexpected: err=%v called=%v resp=%v", err, called, resp)
 	}
 }
 
 func TestUnaryAuthBlocks(t *testing.T) {
-	if _, err := unaryAuth("x")(context.Background(), nil, nil, nil); err == nil {
+	if _, err := unaryAuth("x", nil)(context.Background(), nil, nil, nil); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -221,7 +221,7 @@ func TestStreamAuthOK(t *testing.T) {
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 	called := false
 	handler := grpc.StreamHandler(func(srv any, ss grpc.ServerStream) error { called = true; return nil })
-	if err := streamAuth("x")(nil, &fakeStream{ctx: ctx}, nil, handler); err != nil {
+	if err := streamAuth("x", nil)(nil, &fakeStream{ctx: ctx}, nil, handler); err != nil {
 		t.Fatalf("unexpected: %v", err)
 	}
 	if !called {
@@ -231,7 +231,7 @@ func TestStreamAuthOK(t *testing.T) {
 
 func TestStreamAuthBlocks(t *testing.T) {
 	handler := grpc.StreamHandler(func(srv any, ss grpc.ServerStream) error { return nil })
-	if err := streamAuth("x")(nil, &fakeStream{ctx: context.Background()}, nil, handler); err == nil {
+	if err := streamAuth("x", nil)(nil, &fakeStream{ctx: context.Background()}, nil, handler); err == nil {
 		t.Fatal("expected error")
 	}
 }

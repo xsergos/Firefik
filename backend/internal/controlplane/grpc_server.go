@@ -202,12 +202,20 @@ func toNativeLogLine(in *pb.LogLine) LogLine {
 }
 
 type ctxBearerKey struct{}
+type ctxBearerValidatedKey struct{}
 
 func WithBearer(ctx context.Context, token string) context.Context {
 	return context.WithValue(ctx, ctxBearerKey{}, token)
 }
 
+func WithBearerValidated(ctx context.Context) context.Context {
+	return context.WithValue(ctx, ctxBearerValidatedKey{}, true)
+}
+
 func (s *GRPCServer) authorise(ctx context.Context) error {
+	if v, _ := ctx.Value(ctxBearerValidatedKey{}).(bool); v {
+		return nil
+	}
 	if s.Token == "" {
 		return nil
 	}

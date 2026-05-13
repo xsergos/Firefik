@@ -79,6 +79,12 @@ type Store interface {
 	ListProposals(ctx context.Context, agentID string) ([]AutogenProposal, error)
 	DeleteProposal(ctx context.Context, agentID, containerID string) error
 	ListAuditEvents(ctx context.Context, agentID string, limit int) ([]AuditRecord, error)
+	CreateAgentToken(ctx context.Context, name, description, issuedBy string) (AgentTokenIssued, error)
+	ListAgentTokens(ctx context.Context, includeRevoked bool) ([]AgentToken, error)
+	GetAgentToken(ctx context.Context, id string) (AgentToken, bool, error)
+	RevokeAgentToken(ctx context.Context, id string) error
+	ValidateAgentToken(ctx context.Context, plaintext string) (AgentToken, error)
+	TouchAgentToken(ctx context.Context, id, ip string) error
 	Close() error
 }
 
@@ -896,6 +902,7 @@ type memStore struct {
 	renewals    map[string]memRenewRow
 	proposals   map[string]map[string]AutogenProposal
 	auditLog    []AuditRecord
+	agentTokens map[string]memAgentToken
 }
 
 func NewMemoryStore() Store {
@@ -910,6 +917,7 @@ func NewMemoryStore() Store {
 		enrollments: map[string]EnrollmentToken{},
 		renewals:    map[string]memRenewRow{},
 		proposals:   map[string]map[string]AutogenProposal{},
+		agentTokens: map[string]memAgentToken{},
 	}
 }
 

@@ -51,6 +51,22 @@ type EnrollmentToken struct {
 	ConsumerIP string     `json:"consumer_ip,omitempty"`
 }
 
+type AgentToken struct {
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description,omitempty"`
+	IssuedBy    string     `json:"issued_by"`
+	IssuedAt    time.Time  `json:"issued_at"`
+	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
+	LastUsedIP  string     `json:"last_used_ip,omitempty"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
+}
+
+type AgentTokenIssued struct {
+	AgentToken
+	Token string `json:"token"`
+}
+
 type LogLine struct {
 	Agent  AgentIdentity     `json:"agent"`
 	At     time.Time         `json:"at"`
