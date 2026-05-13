@@ -49,6 +49,16 @@ vi.mock("@/pages/ProposalsPage", () => ({
   default: () => <div data-testid="proposals-page">Proposals</div>,
 }));
 
+vi.mock("@/lib/fleetApi", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/fleetApi")>("@/lib/fleetApi");
+  return {
+    ...actual,
+    whoami: vi.fn().mockResolvedValue({ username: "admin", auth_kind: "session" }),
+    logout: vi.fn(),
+    login: vi.fn(),
+  };
+});
+
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>(
     "react-router-dom",

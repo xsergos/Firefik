@@ -1,4 +1,5 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +12,15 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme, setTheme }),
 }));
 
+vi.mock("@/lib/fleetApi", () => ({
+  whoami: vi.fn().mockResolvedValue(null),
+  logout: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
+
 beforeEach(() => {
   setTheme = vi.fn();
   resolvedTheme = "light";
@@ -21,20 +31,25 @@ afterEach(() => {
 });
 
 function renderAt(path: string) {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<div data-testid="outlet-dashboard">Dash</div>} />
-          <Route path="containers" element={<div data-testid="outlet-containers">Containers</div>} />
-          <Route path="rules" element={<div data-testid="outlet-rules">Rules</div>} />
-          <Route path="policies" element={<div data-testid="outlet-policies">Policies</div>} />
-          <Route path="proposals" element={<div data-testid="outlet-proposals">Proposals</div>} />
-          <Route path="logs" element={<div data-testid="outlet-logs">Logs</div>} />
-          <Route path="history" element={<div data-testid="outlet-history">History</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div data-testid="outlet-dashboard">Dash</div>} />
+            <Route path="containers" element={<div data-testid="outlet-containers">Containers</div>} />
+            <Route path="rules" element={<div data-testid="outlet-rules">Rules</div>} />
+            <Route path="policies" element={<div data-testid="outlet-policies">Policies</div>} />
+            <Route path="proposals" element={<div data-testid="outlet-proposals">Proposals</div>} />
+            <Route path="logs" element={<div data-testid="outlet-logs">Logs</div>} />
+            <Route path="history" element={<div data-testid="outlet-history">History</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 

@@ -224,3 +224,36 @@ export async function revokeAgentToken(id: string): Promise<void> {
     throw new FleetAPIError(res.status, text || `${res.status}`);
   }
 }
+
+const whoamiSchema = z.object({
+  username: z.string().optional().default(""),
+  auth_kind: z.enum(["session", "bearer"]),
+});
+
+const loginResponseSchema = z.object({
+  username: z.string(),
+  expires_at: z.string(),
+});
+
+export type Whoami = z.infer<typeof whoamiSchema>;
+export type LoginResponse = z.infer<typeof loginResponseSchema>;
+
+export async function whoami(): Promise<Whoami | null> {
+  const res = await fetch("/api/whoami", { credentials: "same-origin" });
+  if (res.status === 401 || res.status === 404) return null;
+  if (!res.ok) {
+    throw new FleetAPIError(res.status, await res.text());
+  }
+  return whoamiSchema.parse(await res.json());
+}
+
+export function login(username: string, password: string): Promise<LoginResponse> {
+  return postJSON("/api/login", { username, password }, loginResponseSchema);
+}
+
+export async function logout(): Promise<void> {
+  const res = await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
+  if (!res.ok && res.status !== 204) {
+    throw new FleetAPIError(res.status, await res.text());
+  }
+}

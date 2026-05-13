@@ -1,9 +1,12 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useTheme } from "next-themes";
-import { Moon, Sun } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Moon, Sun, LogOut } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { isPanelMode } from "@/lib/panelMode";
+import { logout, whoami } from "@/lib/fleetApi";
 
 function ThemeToggle() {
   const { t } = useTranslation();
@@ -17,6 +20,37 @@ function ThemeToggle() {
     >
       {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       {isDark ? t("theme.lightMode") : t("theme.darkMode")}
+    </button>
+  );
+}
+
+function LogoutButton() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["whoami"],
+    queryFn: whoami,
+    staleTime: 60_000,
+    retry: false,
+  });
+  if (!data || data.auth_kind !== "session") return null;
+  return (
+    <button
+      onClick={async () => {
+        try {
+          await logout();
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "logout failed");
+          return;
+        }
+        qc.clear();
+        navigate("/login", { replace: true });
+      }}
+      className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+      aria-label="Sign out"
+    >
+      <LogOut className="h-4 w-4" />
+      <span className="flex-1 text-left truncate">{data.username || "Sign out"}</span>
     </button>
   );
 }
@@ -65,7 +99,8 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-3 pb-4">
+        <div className="px-3 pb-4 space-y-1">
+          <LogoutButton />
           <ThemeToggle />
         </div>
       </aside>

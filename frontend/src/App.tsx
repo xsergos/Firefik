@@ -18,6 +18,8 @@ import FleetPage from "@/pages/FleetPage";
 import AgentDetailPage from "@/pages/AgentDetailPage";
 import AddAgentPage from "@/pages/AddAgentPage";
 import AgentTokensPage from "@/pages/AgentTokensPage";
+import LoginPage from "@/pages/LoginPage";
+import { AuthGate } from "@/components/AuthGate";
 
 export default function App() {
   return (
@@ -25,6 +27,8 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <Routes>
+            <Route path="/login" element={<ErrorBoundary><LoginPage /></ErrorBoundary>} />
+            <Route element={<AuthGate />}>
             <Route element={<AppShell />}>
               <Route index element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
               <Route path="containers" element={<ErrorBoundary><ContainersPage /></ErrorBoundary>} />
@@ -39,6 +43,7 @@ export default function App() {
               <Route path="fleet/add" element={<ErrorBoundary><AddAgentPage /></ErrorBoundary>} />
               <Route path="fleet/:id" element={<ErrorBoundary><AgentDetailPage /></ErrorBoundary>} />
               <Route path="agent-tokens" element={<ErrorBoundary><AgentTokensPage /></ErrorBoundary>} />
+            </Route>
             </Route>
           </Routes>
         </BrowserRouter>

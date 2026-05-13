@@ -258,6 +258,8 @@ type HTTPServer struct {
 	Token         string
 	OperatorToken string
 	Audit         AuditEmitter
+	Authenticator OperatorAuthenticator
+	Sessions      *SessionStore
 }
 
 func (s *HTTPServer) Handler() http.Handler {
@@ -291,6 +293,11 @@ func (s *HTTPServer) Handler() http.Handler {
 			mux.HandleFunc("/v1/logs", s.requireBearer(s.handleFleetLogsWS))
 		}
 	}
+	if s.Authenticator != nil && s.Sessions != nil {
+		mux.HandleFunc("/v1/login", s.handleLogin)
+		mux.HandleFunc("/v1/logout", s.handleLogout)
+		mux.HandleFunc("/v1/whoami", s.handleWhoami)
+	}
 	return mux
 }
 
@@ -304,10 +311,18 @@ func (s *HTTPServer) operatorBearer() string {
 func (s *HTTPServer) requireBearer(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		expected := s.operatorBearer()
-		if expected != "" && r.Header.Get("Authorization") != "Bearer "+expected {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		if expected != "" && r.Header.Get("Authorization") == "Bearer "+expected {
+			next(w, r)
 			return
 		}
-		next(w, r)
+		if _, ok := s.sessionFromRequest(r); ok {
+			next(w, r)
+			return
+		}
+		if expected == "" && s.Authenticator == nil {
+			next(w, r)
+			return
+		}
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 	}
 }

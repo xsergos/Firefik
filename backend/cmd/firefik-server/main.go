@@ -121,6 +121,19 @@ func run() error {
 		logger.Warn("--token-file (or FIREFIK_SERVER_TOKEN) is deprecated; migrate to --operator-token-file for HTTP and panel-issued agent tokens for gRPC")
 	}
 
+	panelUsername := strings.TrimSpace(os.Getenv("FIREFIK_PANEL_USERNAME"))
+	panelHash, panelHashErr := loadPanelPasswordHash()
+	if panelHashErr != nil {
+		return panelHashErr
+	}
+	var panelAuth controlplane.OperatorAuthenticator
+	var panelSessions *controlplane.SessionStore
+	if panelUsername != "" && panelHash != "" {
+		panelAuth = controlplane.SingleUserAuthenticator{Username: panelUsername, PasswordHash: panelHash}
+		panelSessions = controlplane.NewSessionStore()
+		logger.Info("panel auth enabled (session cookie)", "user", panelUsername)
+	}
+
 	var ca *mca.CA
 	if *caStateDir != "" {
 		if _, err := os.Stat(*caStateDir); err == nil {
@@ -190,6 +203,8 @@ func run() error {
 		Token:         legacyToken,
 		OperatorToken: operatorToken,
 		Audit:         auditFanOut,
+		Authenticator: panelAuth,
+		Sessions:      panelSessions,
 	}
 
 	httpSrv := &http.Server{
@@ -591,4 +606,15 @@ func loadOperatorToken(path string) (string, error) {
 		return strings.TrimSpace(v), nil
 	}
 	return "", nil
+}
+
+func loadPanelPasswordHash() (string, error) {
+	if path := strings.TrimSpace(os.Getenv("FIREFIK_PANEL_PASSWORD_HASH_FILE")); path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("read panel-password-hash-file: %w", err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	return strings.TrimSpace(os.Getenv("FIREFIK_PANEL_PASSWORD_HASH")), nil
 }
