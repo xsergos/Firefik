@@ -250,6 +250,10 @@ func (e *Engine) Reconcile(ctx context.Context, source audit.Source) (err error)
 		return fmt.Errorf("rules file: %w", err)
 	}
 
+	if err := e.applyHostRules(fileRules); err != nil {
+		e.logger.Error("host rules apply failed", "error", err)
+	}
+
 	containers, err := e.docker.ListContainers(ctx)
 	if err != nil {
 		return fmt.Errorf("reconcile: list containers: %w", err)

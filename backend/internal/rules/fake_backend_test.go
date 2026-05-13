@@ -34,6 +34,13 @@ type recordingBackend struct {
 	removeErrByContainer map[string]error
 
 	listOverride []string
+
+	hostApplyCalls     int
+	hostRemoveCalls    int
+	hostAppliedRules   []HostRule
+	hostAppliedDefault string
+	hostApplyErr       error
+	hostRemoveErr      error
 }
 
 func newRecordingBackend() *recordingBackend {
@@ -95,6 +102,22 @@ func (b *recordingBackend) RemoveContainerChains(containerID string) error {
 	}
 	delete(b.applied, sid)
 	return nil
+}
+
+func (b *recordingBackend) ApplyHostRules(rules []HostRule, defaultPolicy string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.hostApplyCalls++
+	b.hostAppliedRules = append([]HostRule(nil), rules...)
+	b.hostAppliedDefault = defaultPolicy
+	return b.hostApplyErr
+}
+
+func (b *recordingBackend) RemoveHostChain() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.hostRemoveCalls++
+	return b.hostRemoveErr
 }
 
 func (b *recordingBackend) ListAppliedContainerIDs() ([]string, error) {

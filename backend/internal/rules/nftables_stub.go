@@ -34,6 +34,10 @@ func (b *NFTablesBackend) ApplyContainerRules(
 
 func (b *NFTablesBackend) RemoveContainerChains(containerID string) error { return nil }
 
+func (b *NFTablesBackend) ApplyHostRules(rules []HostRule, defaultPolicy string) error { return nil }
+
+func (b *NFTablesBackend) RemoveHostChain() error { return nil }
+
 func (b *NFTablesBackend) ListAppliedContainerIDs() ([]string, error) { return nil, nil }
 
 func (b *NFTablesBackend) Healthy() (HealthReport, error) {

@@ -147,3 +147,43 @@ func TestParseFileAllowlist(t *testing.T) {
 		t.Errorf("expected 1 error, got %d (%v)", len(errs), errs)
 	}
 }
+
+func TestLoadRulesFile_HostRules(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "host.yml")
+	content := `host_default: DROP
+host_rules:
+  - name: ssh
+    protocol: tcp
+    ports: [22]
+    allowlist:
+      - 10.0.0.0/8
+      - 192.168.1.5
+  - name: blockchina
+    protocol: tcp
+    ports: [80, 443]
+    blocklist:
+      - 203.0.113.0/24
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	rf, err := LoadRulesFile(path)
+	if err != nil {
+		t.Fatalf("LoadRulesFile: %v", err)
+	}
+	if rf.HostDefault != "DROP" {
+		t.Errorf("HostDefault = %q", rf.HostDefault)
+	}
+	if len(rf.HostRules) != 2 {
+		t.Fatalf("HostRules count = %d", len(rf.HostRules))
+	}
+	if rf.HostRules[0].Name != "ssh" || rf.HostRules[0].Ports[0] != 22 {
+		t.Errorf("ssh rule: %+v", rf.HostRules[0])
+	}
+	if len(rf.HostRules[0].Allowlist) != 2 {
+		t.Errorf("ssh allowlist: %v", rf.HostRules[0].Allowlist)
+	}
+	if rf.HostRules[1].Blocklist[0] != "203.0.113.0/24" {
+		t.Errorf("block rule blocklist: %v", rf.HostRules[1].Blocklist)
+	}
+}

@@ -76,6 +76,9 @@ func (f *fakeBackend) RemoveContainerChains(containerID string) error {
 	return f.removeErr
 }
 
+func (f *fakeBackend) ApplyHostRules(_ []rules.HostRule, _ string) error { return nil }
+func (f *fakeBackend) RemoveHostChain() error                            { return nil }
+
 func (f *fakeBackend) ListAppliedContainerIDs() ([]string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -37,6 +37,10 @@ func (b *IPTablesBackend) ApplyContainerRules(
 
 func (b *IPTablesBackend) RemoveContainerChains(containerID string) error { return nil }
 
+func (b *IPTablesBackend) ApplyHostRules(rules []HostRule, defaultPolicy string) error { return nil }
+
+func (b *IPTablesBackend) RemoveHostChain() error { return nil }
+
 func (b *IPTablesBackend) ListAppliedContainerIDs() ([]string, error) { return nil, nil }
 
 func (b *IPTablesBackend) Healthy() (HealthReport, error) {

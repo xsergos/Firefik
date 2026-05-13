@@ -21,8 +21,18 @@ type FileRuleSet struct {
 	Profile       string   `yaml:"profile"`
 }
 
+type FileHostRuleSet struct {
+	Name      string   `yaml:"name"`
+	Protocol  string   `yaml:"protocol"`
+	Ports     []uint16 `yaml:"ports"`
+	Allowlist []string `yaml:"allowlist"`
+	Blocklist []string `yaml:"blocklist"`
+}
+
 type RulesFile struct {
-	Rules []FileRuleSet `yaml:"rules"`
+	Rules       []FileRuleSet     `yaml:"rules"`
+	HostRules   []FileHostRuleSet `yaml:"host_rules"`
+	HostDefault string            `yaml:"host_default"`
 }
 
 func LoadRulesFile(path string) (RulesFile, error) {

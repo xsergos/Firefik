@@ -53,6 +53,8 @@ func (f *fakeBackend) ApplyContainerRules(string, string, []net.IP, []docker.Fir
 	return f.applyErr
 }
 func (f *fakeBackend) RemoveContainerChains(string) error         { return f.removeErr }
+func (f *fakeBackend) ApplyHostRules([]HostRule, string) error    { return nil }
+func (f *fakeBackend) RemoveHostChain() error                     { return nil }
 func (f *fakeBackend) ListAppliedContainerIDs() ([]string, error) { return f.containerIDs, nil }
 func (f *fakeBackend) Healthy() (HealthReport, error)             { return HealthReport{}, nil }
 

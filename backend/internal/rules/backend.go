@@ -30,6 +30,10 @@ type Backend interface {
 
 	RemoveContainerChains(containerID string) error
 
+	ApplyHostRules(rules []HostRule, defaultPolicy string) error
+
+	RemoveHostChain() error
+
 	ListAppliedContainerIDs() ([]string, error)
 
 	Healthy() (HealthReport, error)

@@ -45,6 +45,8 @@ func (stubBackend) ApplyContainerRules(string, string, []net.IP, []docker.Firewa
 	return nil
 }
 func (stubBackend) RemoveContainerChains(string) error         { return nil }
+func (stubBackend) ApplyHostRules([]rules.HostRule, string) error { return nil }
+func (stubBackend) RemoveHostChain() error                     { return nil }
 func (stubBackend) ListAppliedContainerIDs() ([]string, error) { return nil, nil }
 func (stubBackend) Healthy() (rules.HealthReport, error)       { return rules.HealthReport{}, nil }
 
