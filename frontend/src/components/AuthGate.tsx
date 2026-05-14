@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, Outlet } from "react-router-dom";
 import { whoami } from "@/lib/fleetApi";
+import { isPanelMode } from "@/lib/panelMode";
 
 type Status = "checking" | "authed" | "unauthed";
 
 export function AuthGate() {
-  const [status, setStatus] = useState<Status>("checking");
+  const [status, setStatus] = useState<Status>(isPanelMode ? "checking" : "authed");
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
+    if (!isPanelMode) return;
     let cancelled = false;
     whoami()
       .then((w) => {

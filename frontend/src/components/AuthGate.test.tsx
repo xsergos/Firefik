@@ -8,6 +8,10 @@ vi.mock("@/lib/fleetApi", () => ({
   whoami: vi.fn(),
 }));
 
+vi.mock("@/lib/panelMode", () => ({
+  isPanelMode: true,
+}));
+
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -44,6 +48,27 @@ describe("AuthGate", () => {
     vi.mocked(api.whoami).mockRejectedValue(new Error("boom"));
     renderAt("/");
     expect(await screen.findByTestId("login")).toBeInTheDocument();
+  });
+
+  it("bypasses whoami entirely in agent mode (isPanelMode=false)", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/panelMode", () => ({ isPanelMode: false }));
+    const api = await import("@/lib/fleetApi");
+    const calls = vi.mocked(api.whoami);
+    calls.mockClear();
+    const { AuthGate: FreshGate } = await import("./AuthGate");
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route element={<FreshGate />}>
+            <Route path="/" element={<div data-testid="home">home</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByTestId("home")).toBeInTheDocument();
+    expect(calls).not.toHaveBeenCalled();
+    vi.doUnmock("@/lib/panelMode");
   });
 
   it("shows a Checking session… placeholder while in flight", async () => {

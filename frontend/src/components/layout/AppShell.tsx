@@ -32,6 +32,7 @@ function LogoutButton() {
     queryFn: whoami,
     staleTime: 60_000,
     retry: false,
+    enabled: isPanelMode,
   });
   if (!data || data.auth_kind !== "session") return null;
   return (
