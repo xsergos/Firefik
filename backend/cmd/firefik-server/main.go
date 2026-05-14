@@ -224,6 +224,10 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	if panelSessions != nil {
+		go panelSessions.RunJanitor(ctx, 5*time.Minute)
+	}
+
 	retentionCtx, retentionCancel := context.WithCancel(ctx)
 	defer retentionCancel()
 	go func() {

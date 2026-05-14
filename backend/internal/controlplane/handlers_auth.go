@@ -132,6 +132,10 @@ func (s *HTTPServer) handleWhoami(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, whoamiResponse{AuthKind: "bearer"})
 		return
 	}
+	if s.Authenticator == nil && s.operatorBearer() == "" {
+		writeJSON(w, http.StatusOK, whoamiResponse{AuthKind: "none"})
+		return
+	}
 	http.Error(w, "unauthorized", http.StatusUnauthorized)
 }
 

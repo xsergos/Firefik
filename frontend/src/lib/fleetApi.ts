@@ -227,7 +227,7 @@ export async function revokeAgentToken(id: string): Promise<void> {
 
 const whoamiSchema = z.object({
   username: z.string().optional().default(""),
-  auth_kind: z.enum(["session", "bearer"]),
+  auth_kind: z.enum(["session", "bearer", "none"]),
 });
 
 const loginResponseSchema = z.object({

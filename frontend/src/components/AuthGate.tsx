@@ -14,7 +14,11 @@ export function AuthGate() {
     whoami()
       .then((w) => {
         if (cancelled) return;
-        setStatus(w ? "authed" : "unauthed");
+        if (w === null) {
+          setStatus("unauthed");
+          return;
+        }
+        setStatus("authed");
       })
       .catch(() => {
         if (!cancelled) setStatus("unauthed");

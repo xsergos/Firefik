@@ -213,6 +213,20 @@ func TestHandleWhoami_SessionAndBearer(t *testing.T) {
 	}
 }
 
+func TestHandleWhoami_NoAuthMode(t *testing.T) {
+	srv, _ := newTestHTTPServer(t)
+	srv.Token = ""
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/whoami", nil)
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("no-auth whoami should be 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"auth_kind":"none"`) {
+		t.Fatalf("expected auth_kind=none, body=%s", rec.Body.String())
+	}
+}
+
 func TestRequireBearer_AcceptsSessionCookie(t *testing.T) {
 	srv, st := makeAuthEnabledServer(t, "alice", "s3cret")
 	srv.OperatorToken = "op-token"

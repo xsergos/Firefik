@@ -296,8 +296,8 @@ func (s *HTTPServer) Handler() http.Handler {
 	if s.Authenticator != nil && s.Sessions != nil {
 		mux.HandleFunc("/v1/login", s.handleLogin)
 		mux.HandleFunc("/v1/logout", s.handleLogout)
-		mux.HandleFunc("/v1/whoami", s.handleWhoami)
 	}
+	mux.HandleFunc("/v1/whoami", s.handleWhoami)
 	return mux
 }
 

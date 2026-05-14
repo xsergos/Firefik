@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -96,6 +97,22 @@ func (s *SessionStore) Revoke(id string) {
 	s.mu.Lock()
 	delete(s.sessions, id)
 	s.mu.Unlock()
+}
+
+func (s *SessionStore) RunJanitor(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			s.Sweep()
+		}
+	}
 }
 
 func (s *SessionStore) Sweep() int {
