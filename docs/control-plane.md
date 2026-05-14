@@ -228,8 +228,12 @@ service ControlPlane {
 ## HTTP REST surface (operator UI / approval flow)
 
 In addition to the bootstrap `GET /healthz` + `POST /v1/enroll`, the
-HTTP listener serves an operator-side REST API once a control-plane
-token is set (`--token-file` or `FIREFIK_SERVER_TOKEN`):
+HTTP listener serves an operator-side REST API once an operator
+bearer is set (`--operator-token-file`, env
+`FIREFIK_SERVER_OPERATOR_TOKEN`, or the deprecated `--token-file`
+fallback) **or** panel session auth is enabled
+(`FIREFIK_PANEL_USERNAME` + `FIREFIK_PANEL_PASSWORD_HASH`). Either
+authentication path satisfies the middleware:
 
 | Method + Path | Purpose |
 |---|---|
@@ -248,6 +252,12 @@ token is set (`--token-file` or `FIREFIK_SERVER_TOKEN`):
 | `GET /v1/agents/{id}/logs` | **WebSocket** — live tail of nflog forwarded by the agent. `Authorization: Bearer …` required on the upgrade request. Server sends `LogLine` JSON (`agent`, `at`, `level`, `source`, `line`, `fields`) and PINGs every 30s. |
 | `GET /v1/enrollment-tokens` | List active (unconsumed) enrollment tokens. `?include_used=1` includes consumed/revoked. |
 | `POST /v1/enrollment-tokens` | Issue a one-time enrollment token. Body `{"agent_id": "host-prod-01", "ttl_seconds": 900}`. `agent_id` must match `[a-z0-9-]{3,63}`; TTL defaults to 15 min, capped at 24 h. Returns `201 {"token","agent_id","expires_at","issued_at"}`. The token is single-use — `POST /v1/enroll` consumes it atomically. |
+| `GET /v1/agent-tokens` | List active agent gRPC tokens (panel-managed, long-lived bearer that each agent uses on its `Stream` RPC). `?include_revoked=1` includes revoked rows. **Plaintext is never returned** — only metadata + `last_used_at` / `last_used_ip`. |
+| `POST /v1/agent-tokens` | Issue a new agent token. Body `{"name":"prod-host-01","description":"primary"}`. Plaintext is shown **once** in the response (`token` field) and never again. Token is `agt_<hex32>`; SHA-256 hashed in the CP database. |
+| `DELETE /v1/agent-tokens/{id}` | Revoke. Agents using the revoked token start failing gRPC auth immediately. Idempotent: re-revoking a revoked id returns `404`. |
+| `POST /v1/login` | Panel session auth. Body `{"username","password"}`. On match, sets a `firefik_session` HttpOnly Secure SameSite=Lax cookie and returns `{"username","expires_at"}`. Available only when `FIREFIK_PANEL_USERNAME` + `FIREFIK_PANEL_PASSWORD_HASH` are set on `firefik-server`. |
+| `POST /v1/logout` | Clear the `firefik_session` cookie and revoke the underlying session. `204 No Content`. |
+| `GET /v1/whoami` | Returns `{"username","auth_kind":"session\|bearer"}` for the current request. `401` if neither cookie nor matching bearer is present. Used by the panel's AuthGate. |
 
 ### Fleet-aggregated panel surface
 

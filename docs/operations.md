@@ -153,6 +153,67 @@ extension fields: `src` (container IPs), `cs1` (source), `cs2` (container
 ID), `cs3` (container name), `cs4` (default policy), `cn1` (rule-set
 count), `rt` (ISO-8601 timestamp).
 
+## Token rotation
+
+Two independent token surfaces with independent rotation procedures.
+
+### Operator HTTP token
+
+The operator token gates HTTP routes on `firefik-server`. Rotate it
+when an operator is offboarded, when ansible credentials are
+suspected leaked, or on a calendar cadence.
+
+```bash
+# Generate a new token.
+NEW=$(openssl rand -hex 32)
+
+# Drop it into the secret file atomically.
+echo -n "$NEW" > /etc/firefik/operator-token.new
+chmod 600 /etc/firefik/operator-token.new
+mv /etc/firefik/operator-token.new /etc/firefik/operator-token
+
+# Restart firefik-server (no hot-reload for this flag yet).
+systemctl restart firefik-server
+
+# Verify.
+curl -fH "Authorization: Bearer $NEW" https://cp:8443/v1/agents
+```
+
+Panel containers using `${FIREFIK_OPERATOR_TOKEN}` env need to be
+restarted (or re-pulled with the new env value) so Caddy injects
+the new bearer.
+
+### Agent gRPC tokens (panel-managed)
+
+Each agent has its own bearer token, issued and revoked from the
+panel. To rotate a single host:
+
+1. Open **Agent tokens** in the panel, click **Issue token**,
+   give it a name like `prod-host-01-new`. Copy the plaintext
+   shown in the yellow banner — it is only visible once.
+2. SSH to the host and write the new value to the agent's
+   `FIREFIK_CONTROL_PLANE_TOKEN_FILE` (atomic mv).
+3. Restart the agent (or wait for the file watcher — see
+   `cmd/firefik/main.go:WatchFile` for the reload semantics).
+4. Back in the panel, confirm the new token shows a recent
+   "Last seen" entry, then revoke the old token.
+
+To rotate the whole fleet, repeat per host; nothing fails fleet-wide
+during the transition because both tokens are accepted until step 4.
+
+### Panel session credentials
+
+The panel password hash is a static env var. To rotate without
+restarting the CP:
+
+1. Hash the new password: `htpasswd -bnBC 12 "" '<password>' | tr -d ':\n'`.
+2. If you mount the hash via `FIREFIK_PANEL_PASSWORD_HASH_FILE`,
+   atomically replace the file. (Hot-reload is on the roadmap; for
+   now restart `firefik-server`.)
+3. Existing sessions remain valid until their TTL/idle timeout; if
+   you suspect a compromise, restart `firefik-server` to flush the
+   in-memory session store.
+
 ## GeoIP maintenance
 
 When `FIREFIK_USE_GEOIP_DB=true` and `FIREFIK_GEOIP_DB_AUTOUPDATE=true`,

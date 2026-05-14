@@ -86,6 +86,72 @@ to "good to have".
 - **Remediate.** One-time bootstrap tokens per fleet rotation; rotate
   token-file after large enroll wave.
 
+### 2.4 Operator/agent token separation
+
+- **Why.** Before v(N), `--token-file` gated *both* the operator HTTP
+  surface (panel, ansible, curl) **and** the agent gRPC interceptor.
+  Compromising a single panel host = full fleet admin via the agent
+  channel, and vice versa. Same blast radius for both transports is
+  the worst case.
+- **How it works now.**
+  - `--operator-token-file` (env `FIREFIK_SERVER_OPERATOR_TOKEN`)
+    gates HTTP requests under `requireBearer` (`/v1/agents`,
+    `/v1/stats`, `/v1/agent-tokens`, `/v1/policies`, …).
+  - Agent gRPC tokens are panel-managed: created via
+    `POST /v1/agent-tokens` (operator-gated), stored as SHA-256
+    hashes in the CP DB, identified by an `agt_` prefix. Plaintext
+    is shown **once** at issue time and never again.
+  - The gRPC interceptor validates the incoming `Bearer` against
+    the legacy single token (back-compat) **then** falls back to
+    `Store.ValidateAgentToken`, which checks the hash, refuses
+    revoked tokens, and refreshes `last_used_at` / `last_used_ip`
+    so the panel can show "last seen" per token.
+  - Legacy `--token-file` (env `FIREFIK_SERVER_TOKEN`) still works
+    — used as the operator token if `--operator-token-file` is
+    empty AND as a static fallback agent bearer. Startup logs a
+    deprecation warning; planned removal in v(N+1).
+- **Verify.**
+  ```bash
+  # operator-token must work for HTTP, must fail on gRPC
+  curl -fH "Authorization: Bearer $OPERATOR" https://cp:8443/v1/agents
+  grpcurl -H "authorization: Bearer $OPERATOR" cp:8444 list  # → Unauthenticated
+
+  # agent-token (panel-issued) must work for gRPC, must fail on HTTP
+  curl -fH "Authorization: Bearer $AGENT" https://cp:8443/v1/agents  # → 401
+  grpcurl -H "authorization: Bearer $AGENT" cp:8444 list             # OK
+  ```
+- **Remediate.** Issue per-host agent tokens from the panel; rotate
+  via "Revoke" + reissue when a host is decommissioned or suspected
+  compromised — no fleet-wide impact.
+
+### 2.5 Panel session auth
+
+- **Why.** Until v(N), anyone reaching the panel's HTTP port got an
+  authenticated CP session because Caddy injected the operator
+  Bearer for every browser request. Fine for air-gapped homelabs;
+  unsuitable when the panel is exposed to a corp LAN, VPN, or
+  reverse-proxied to the public internet.
+- **How.** Set
+  `FIREFIK_PANEL_USERNAME=<user>` and
+  `FIREFIK_PANEL_PASSWORD_HASH=$(htpasswd -bnBC 12 "" <pass> | tr -d ':\n')`
+  on the CP. Unset `FIREFIK_OPERATOR_TOKEN` in the **panel
+  container** (the CP keeps it for its own validation) so Caddy
+  injects an empty Bearer; the CP rejects empty bearers and falls
+  through to session-cookie validation. Browsers hit `/login`,
+  receive a `firefik_session` HttpOnly cookie, and use it for all
+  subsequent `/api/*` calls.
+- **Verify.**
+  ```bash
+  curl -i https://panel/api/agents          # → 401 (no Bearer, no cookie)
+  curl -i -X POST -d '{"username":"admin","password":"…"}' https://panel/api/login
+  # → Set-Cookie: firefik_session=… ; HttpOnly; Secure; SameSite=Lax
+  curl -i --cookie 'firefik_session=…' https://panel/api/agents   # → 200
+  ```
+- **Remediate.** Always combine with mTLS or a VPN/private network
+  if exposing the panel beyond `localhost`. Session TTL defaults to
+  24 h, idle timeout 4 h — adjust via `SessionStore.WithTTL` if
+  embedding `firefik-server`.
+
 ---
 
 ## 3 — Certificate lifecycle

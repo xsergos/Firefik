@@ -284,6 +284,36 @@ rules:
 
 File rules are merged with label rules. If a rule set with the same name exists in both, the label version takes priority.
 
+### Host-level rules
+
+Container rules apply to traffic destined to a specific docker container.
+Host rules apply to traffic destined to the host itself — useful for
+SSH allowlists, default-DROP postures on management interfaces, or
+blocking known-bad nets at the host edge:
+
+```yaml
+host_default: DROP        # ACCEPT (default) | DROP
+host_rules:
+  - name: ssh
+    protocol: tcp
+    ports: [22]
+    allowlist:
+      - 10.0.0.0/8
+      - 192.168.1.5
+  - name: block-china
+    protocol: tcp
+    ports: [80, 443]
+    blocklist:
+      - 203.0.113.0/24
+```
+
+Internally firefik maintains a dedicated `FIREFIK_HOST` chain hooked
+from `INPUT` (iptables) or a `chain input` block of type filter
+(nftables). Both backends keep an `ESTABLISHED,RELATED` accept rule
+at the top when stateful mode is on. Remove the `host_rules` and
+`host_default` keys (or empty the section) to tear the host chain
+down on the next reconcile.
+
 ## API
 
 The HTTP surface is described in the embedded OpenAPI 2.0 spec

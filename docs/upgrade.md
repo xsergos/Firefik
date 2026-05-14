@@ -69,6 +69,66 @@ firefik`. No packet loss.
 
 ## Per-version migration notes
 
+### v0.13.0 → v0.14.0
+
+**Breaking:**
+
+- **`FIREFIK_CP_TOKEN` env var renamed to `FIREFIK_OPERATOR_TOKEN`**
+  in the panel container, with a `${FIREFIK_OPERATOR_TOKEN:-${FIREFIK_CP_TOKEN:-}}`
+  fallback in the bundled `docker-compose.yml`. Existing `.env` files
+  keep working through this minor, but rename to the new variable
+  before v0.15 — the fallback will be dropped.
+- **CP docker secret renamed** `firefik_cp_token` → `firefik_cp_operator_token`.
+  If you reference the secret directly (custom Compose stack), update
+  the mount path. The `firefik-server` CLI flag also moves from
+  `--token-file=/run/secrets/firefik_cp_token` to
+  `--operator-token-file=/run/secrets/firefik_cp_operator_token`.
+
+**Deprecated (kept for back-compat, removal in v0.15):**
+
+- `--token-file` / `FIREFIK_SERVER_TOKEN` still works as the operator
+  HTTP bearer **and** as a legacy single agent bearer. Startup logs
+  a deprecation warning. Migrate by issuing per-host agent tokens
+  through the panel "Agent tokens" page and switching `firefik-server`
+  to `--operator-token-file`.
+
+**Additive — operator/agent token split:**
+
+- New flag `--operator-token-file` (env `FIREFIK_SERVER_OPERATOR_TOKEN`)
+  gates operator HTTP routes.
+- New table `agent_tokens` (migration 0006) stores per-agent gRPC
+  bearer tokens as SHA-256 hashes. Plaintext shown once at issue
+  time. CRUD via `/v1/agent-tokens` (operator-gated) and the panel
+  "Agent tokens" page.
+
+**Additive — panel session auth (opt-in):**
+
+- `FIREFIK_PANEL_USERNAME` and
+  `FIREFIK_PANEL_PASSWORD_HASH` (or `_HASH_FILE`) on the CP enable
+  the `/v1/login`, `/v1/logout`, `/v1/whoami` endpoints and switch
+  `requireBearer` to accept the `firefik_session` HttpOnly cookie
+  alongside the operator Bearer. When unset, panel auth is disabled
+  and behaviour is unchanged. Generate the hash with
+  `htpasswd -bnBC 12 "" '<password>' | tr -d ':\n'`.
+
+**Additive — host-level rules:**
+
+- `rules.conf` gains top-level `host_rules` and `host_default` keys.
+  Rules in `host_rules` apply to `INPUT` traffic via the new
+  `FIREFIK_HOST` chain. Existing files without these keys are
+  unaffected — the chain isn't created until at least one host rule
+  is defined.
+
+**Additive — rules display in panel:**
+
+- Agents now ship the full rule-set JSON in their snapshot under the
+  reserved label key `firefik.internal.rule_sets`. The CP strips
+  this key from the panel's containers response and exposes the
+  decoded rule-sets array on `/v1/rules`. No action required on
+  upgrade; old agents that don't ship the label still render
+  correctly (rule sets just show as `[]` until they push a snapshot
+  on the new build).
+
 ### v0.12.0 → v0.13.0
 
 **Breaking:** _(none — v0.13 is additive.)_
