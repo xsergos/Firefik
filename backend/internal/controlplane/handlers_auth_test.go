@@ -169,7 +169,7 @@ func TestHandleLogout_ClearsCookie(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rec.Code)
 	}
-	if _, err := st.Touch(sess.ID); err != ErrSessionUnknown {
+	if _, err := st.Touch(sess.ID); !errors.Is(err, ErrSessionUnknown) {
 		t.Fatal("session should be revoked")
 	}
 	cookies := rec.Result().Cookies()
