@@ -28,7 +28,7 @@ func TestHandleFleetRules_DecodesRuleSetsFromInternalLabel(t *testing.T) {
 			FirewallStatus: "active",
 			DefaultPolicy:  "DROP",
 			Labels: map[string]string{
-				"firefik.enable":  "true",
+				"firefik.enable": "true",
 				RuleSetsLabelKey: string(ruleSetsJSON),
 			},
 			RuleSetCount: 1,
@@ -99,7 +99,7 @@ func TestHandleFleetContainers_StripsInternalRuleSetsLabel(t *testing.T) {
 		Containers: []ContainerState{{
 			ID: "ghi789", Name: "api", Status: "running",
 			Labels: map[string]string{
-				"firefik.enable":  "true",
+				"firefik.enable": "true",
 				RuleSetsLabelKey: `[{"x":1}]`,
 			},
 		}},
@@ -136,9 +136,6 @@ func TestDecodeRuleSetsFromLabels_BadJSON(t *testing.T) {
 func TestStripInternalLabels_NoMutationWhenAbsent(t *testing.T) {
 	in := map[string]string{"a": "1", "b": "2"}
 	out := stripInternalLabels(in)
-	if &in == &out {
-		// pointer identity check is meaningless on maps; this is a sanity test
-	}
 	if len(out) != 2 || out["a"] != "1" {
 		t.Fatalf("absent key should be a no-op pass-through, got %+v", out)
 	}

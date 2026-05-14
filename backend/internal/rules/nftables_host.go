@@ -119,7 +119,9 @@ func (b *NFTablesBackend) flushHostChainRules(chain *nftables.Chain) error {
 		return err
 	}
 	for _, r := range rules {
-		b.conn.DelRule(r)
+		if err := b.conn.DelRule(r); err != nil {
+			return err
+		}
 	}
 	return b.conn.Flush()
 }

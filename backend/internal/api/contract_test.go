@@ -44,11 +44,11 @@ func (stubBackend) Cleanup() error     { return nil }
 func (stubBackend) ApplyContainerRules(string, string, []net.IP, []docker.FirewallRuleSet, string, []net.IPNet) error {
 	return nil
 }
-func (stubBackend) RemoveContainerChains(string) error         { return nil }
+func (stubBackend) RemoveContainerChains(string) error            { return nil }
 func (stubBackend) ApplyHostRules([]rules.HostRule, string) error { return nil }
-func (stubBackend) RemoveHostChain() error                     { return nil }
-func (stubBackend) ListAppliedContainerIDs() ([]string, error) { return nil, nil }
-func (stubBackend) Healthy() (rules.HealthReport, error)       { return rules.HealthReport{}, nil }
+func (stubBackend) RemoveHostChain() error                        { return nil }
+func (stubBackend) ListAppliedContainerIDs() ([]string, error)    { return nil, nil }
+func (stubBackend) Healthy() (rules.HealthReport, error)          { return rules.HealthReport{}, nil }
 
 func buildContractServer(t *testing.T) *httptest.Server {
 	t.Helper()

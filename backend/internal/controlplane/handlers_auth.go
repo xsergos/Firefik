@@ -17,8 +17,8 @@ type OperatorAuthenticator interface {
 var ErrInvalidCredentials = errors.New("invalid credentials")
 
 type SingleUserAuthenticator struct {
-	Username       string
-	PasswordHash   string
+	Username     string
+	PasswordHash string
 }
 
 func (a SingleUserAuthenticator) Authenticate(username, password string) (string, error) {
@@ -45,8 +45,8 @@ type loginResponse struct {
 }
 
 type whoamiResponse struct {
-	Username  string `json:"username,omitempty"`
-	AuthKind  string `json:"auth_kind"`
+	Username string `json:"username,omitempty"`
+	AuthKind string `json:"auth_kind"`
 }
 
 func (s *HTTPServer) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -67,8 +67,8 @@ func (s *HTTPServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if s.Audit != nil {
 			s.Audit.Emit("panel_login_failed", map[string]string{
-				"username":   req.Username,
-				"client_ip":  clientIPFromRequest(r),
+				"username":  req.Username,
+				"client_ip": clientIPFromRequest(r),
 			})
 		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)

@@ -3,6 +3,7 @@ package controlplane
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -49,7 +50,7 @@ func TestSessionStore_Expired(t *testing.T) {
 	st := NewSessionStore().WithTTL(time.Millisecond, time.Hour)
 	sess, _ := st.Create("alice")
 	time.Sleep(5 * time.Millisecond)
-	if _, err := st.Touch(sess.ID); err != ErrSessionExpired {
+	if _, err := st.Touch(sess.ID); !errors.Is(err, ErrSessionExpired) {
 		t.Fatalf("expected ErrSessionExpired, got %v", err)
 	}
 }
@@ -58,7 +59,7 @@ func TestSessionStore_IdleEvict(t *testing.T) {
 	st := NewSessionStore().WithTTL(time.Hour, time.Millisecond)
 	sess, _ := st.Create("alice")
 	time.Sleep(5 * time.Millisecond)
-	if _, err := st.Touch(sess.ID); err != ErrSessionExpired {
+	if _, err := st.Touch(sess.ID); !errors.Is(err, ErrSessionExpired) {
 		t.Fatalf("idle session should evict, got %v", err)
 	}
 }
@@ -83,20 +84,20 @@ func TestSingleUserAuth_GoodPassword(t *testing.T) {
 
 func TestSingleUserAuth_BadPassword(t *testing.T) {
 	a := SingleUserAuthenticator{Username: "alice", PasswordHash: bcryptHash(t, "s3cret")}
-	if _, err := a.Authenticate("alice", "wrong"); err != ErrInvalidCredentials {
+	if _, err := a.Authenticate("alice", "wrong"); !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}
 }
 
 func TestSingleUserAuth_BadUsername(t *testing.T) {
 	a := SingleUserAuthenticator{Username: "alice", PasswordHash: bcryptHash(t, "x")}
-	if _, err := a.Authenticate("bob", "x"); err != ErrInvalidCredentials {
+	if _, err := a.Authenticate("bob", "x"); !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatal("wrong username should reject")
 	}
 }
 
 func TestSingleUserAuth_EmptyConfig(t *testing.T) {
-	if _, err := (SingleUserAuthenticator{}).Authenticate("alice", "x"); err != ErrInvalidCredentials {
+	if _, err := (SingleUserAuthenticator{}).Authenticate("alice", "x"); !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatal("empty config should reject")
 	}
 }
