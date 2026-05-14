@@ -140,3 +140,74 @@ func TestStripInternalLabels_NoMutationWhenAbsent(t *testing.T) {
 		t.Fatalf("absent key should be a no-op pass-through, got %+v", out)
 	}
 }
+
+func TestHandleFleetRules_AppendsSyntheticHostRow(t *testing.T) {
+	srv, store := newTestHTTPServer(t)
+	hostRulesJSON, _ := json.Marshal(HostRulesPayload{
+		Default: "DROP",
+		Rules: []HostRuleDTO{
+			{Name: "ssh", Protocol: "tcp", Ports: []uint16{22}, Allowlist: []string{"10.0.0.0/8"}},
+		},
+	})
+	id := AgentIdentity{
+		InstanceID: "host-host",
+		Hostname:   "host-host",
+		Labels:     map[string]string{HostRulesLabelKey: string(hostRulesJSON)},
+	}
+	if err := store.UpsertAgent(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordSnapshot(context.Background(), AgentSnapshot{Agent: id, At: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/rules", nil)
+	srv.handleFleetRules(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var out []fleetRuleDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v body=%s", err, rec.Body.String())
+	}
+	if len(out) != 1 {
+		t.Fatalf("expected 1 synthetic host row, got %d: %+v", len(out), out)
+	}
+	if out[0].ContainerID != "(host)" || out[0].ContainerName != "host firewall" {
+		t.Fatalf("synthetic row not labelled correctly: %+v", out[0])
+	}
+	if out[0].DefaultPolicy != "DROP" {
+		t.Fatalf("host default not propagated: %+v", out[0])
+	}
+	if len(out[0].RuleSets) != 1 {
+		t.Fatalf("expected 1 host rule, got %v", out[0].RuleSets)
+	}
+}
+
+func TestDecodeHostRulesFromLabels_BadJSON(t *testing.T) {
+	_, ok := decodeHostRulesFromLabels(map[string]string{HostRulesLabelKey: "{not json"})
+	if ok {
+		t.Fatal("bad JSON should yield ok=false")
+	}
+}
+
+func TestDecodeHostRulesFromLabels_EmptyPayload(t *testing.T) {
+	_, ok := decodeHostRulesFromLabels(map[string]string{HostRulesLabelKey: `{"default":"","rules":[]}`})
+	if ok {
+		t.Fatal("empty payload (no default, no rules) should yield ok=false")
+	}
+}
+
+func TestStripInternalLabels_StripsHostRulesKey(t *testing.T) {
+	in := map[string]string{"firefik.enable": "true", HostRulesLabelKey: `{"x":1}`, RuleSetsLabelKey: `[{}]`}
+	out := stripInternalLabels(in)
+	if _, present := out[HostRulesLabelKey]; present {
+		t.Fatalf("host_rules label leaked: %+v", out)
+	}
+	if _, present := out[RuleSetsLabelKey]; present {
+		t.Fatalf("rule_sets label leaked: %+v", out)
+	}
+	if out["firefik.enable"] != "true" {
+		t.Fatalf("non-internal label dropped: %+v", out)
+	}
+}

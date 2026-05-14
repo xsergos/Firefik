@@ -228,13 +228,30 @@ func decodeRuleSetsFromLabels(labels map[string]string) []any {
 	return out
 }
 
+func decodeHostRulesFromLabels(labels map[string]string) (HostRulesPayload, bool) {
+	raw, ok := labels[HostRulesLabelKey]
+	if !ok || raw == "" {
+		return HostRulesPayload{}, false
+	}
+	var payload HostRulesPayload
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return HostRulesPayload{}, false
+	}
+	if len(payload.Rules) == 0 && strings.TrimSpace(payload.Default) == "" {
+		return HostRulesPayload{}, false
+	}
+	return payload, true
+}
+
 func stripInternalLabels(labels map[string]string) map[string]string {
-	if _, ok := labels[RuleSetsLabelKey]; !ok {
+	_, hasRS := labels[RuleSetsLabelKey]
+	_, hasHR := labels[HostRulesLabelKey]
+	if !hasRS && !hasHR {
 		return labels
 	}
-	out := make(map[string]string, len(labels)-1)
+	out := make(map[string]string, len(labels))
 	for k, v := range labels {
-		if k == RuleSetsLabelKey {
+		if k == RuleSetsLabelKey || k == HostRulesLabelKey {
 			continue
 		}
 		out[k] = v
@@ -275,6 +292,44 @@ func (s *HTTPServer) handleFleetRules(w http.ResponseWriter, r *http.Request) {
 				DefaultPolicy: defPol,
 				RuleSets:      decodeRuleSetsFromLabels(c.Labels),
 				RuleSetCount:  c.RuleSetCount,
+			})
+		}
+		if payload, ok := decodeHostRulesFromLabels(snap.Agent.Labels); ok {
+			defPol := strings.ToUpper(strings.TrimSpace(payload.Default))
+			if defPol == "" {
+				defPol = "ACCEPT"
+			}
+			ruleSets := make([]any, 0, len(payload.Rules))
+			for _, hr := range payload.Rules {
+				ports := hr.Ports
+				if ports == nil {
+					ports = []uint16{}
+				}
+				allow := hr.Allowlist
+				if allow == nil {
+					allow = []string{}
+				}
+				block := hr.Blocklist
+				if block == nil {
+					block = []string{}
+				}
+				ruleSets = append(ruleSets, map[string]any{
+					"name":      hr.Name,
+					"protocol":  hr.Protocol,
+					"ports":     ports,
+					"allowlist": allow,
+					"blocklist": block,
+				})
+			}
+			out = append(out, fleetRuleDTO{
+				AgentID:       rec.Identity.InstanceID,
+				AgentHostname: rec.Identity.Hostname,
+				ContainerID:   "(host)",
+				ContainerName: "host firewall",
+				Status:        "host",
+				DefaultPolicy: defPol,
+				RuleSets:      ruleSets,
+				RuleSetCount:  len(payload.Rules),
 			})
 		}
 	}

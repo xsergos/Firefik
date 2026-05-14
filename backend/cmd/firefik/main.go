@@ -591,6 +591,30 @@ func (s *engineSnapshotSource) Snapshot(ctx context.Context, id controlplane.Age
 		return controlplane.AgentSnapshot{}, err
 	}
 	applied := s.engine.GetApplied()
+	hostRules, hostDefault := s.engine.GetHostRules()
+	if len(hostRules) > 0 || hostDefault != "" {
+		payload := controlplane.HostRulesPayload{
+			Default: hostDefault,
+			Rules:   make([]controlplane.HostRuleDTO, 0, len(hostRules)),
+		}
+		for _, hr := range hostRules {
+			payload.Rules = append(payload.Rules, controlplane.HostRuleDTO{
+				Name:      hr.Name,
+				Protocol:  hr.Protocol,
+				Ports:     append([]uint16(nil), hr.Ports...),
+				Allowlist: append([]string(nil), hr.Allowlist...),
+				Blocklist: append([]string(nil), hr.Blocklist...),
+			})
+		}
+		if body, jerr := json.Marshal(payload); jerr == nil {
+			labels := make(map[string]string, len(id.Labels)+1)
+			for k, v := range id.Labels {
+				labels[k] = v
+			}
+			labels[controlplane.HostRulesLabelKey] = string(body)
+			id.Labels = labels
+		}
+	}
 	out := controlplane.AgentSnapshot{Agent: id, At: time.Now().UTC()}
 	for _, ctr := range containers {
 		sid := rules.ShortID(ctr.ID)

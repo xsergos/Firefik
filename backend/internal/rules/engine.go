@@ -45,8 +45,20 @@ type Engine struct {
 	templates map[string]config.RuleTemplate
 	policies  map[string]*policy.Policy
 
+	hostMu           sync.Mutex
+	appliedHostRules []config.FileHostRuleSet
+	appliedHostDef   string
+
 	ipMu        sync.RWMutex
 	containerIP map[string]string
+}
+
+func (e *Engine) GetHostRules() ([]config.FileHostRuleSet, string) {
+	e.hostMu.Lock()
+	defer e.hostMu.Unlock()
+	out := make([]config.FileHostRuleSet, len(e.appliedHostRules))
+	copy(out, e.appliedHostRules)
+	return out, e.appliedHostDef
 }
 
 func (e *Engine) SetPolicies(p map[string]*policy.Policy) {

@@ -214,6 +214,24 @@ restarting the CP:
    you suspect a compromise, restart `firefik-server` to flush the
    in-memory session store.
 
+> **Trap:** a bcrypt hash starts with `$2a$`/`$2b$`/`$2y$` and is
+> exactly 60 characters. The `$` chars are special to docker-compose
+> variable substitution and to many config-management templating
+> engines (Ansible, Jinja, envsubst). If the hash ends up shorter
+> than 60 chars or missing the `$2*$` prefix, login will return
+> **401 unauthorized** for every credential. To avoid:
+> - **docker-compose `.env`**: escape every `$` as `$$`
+>   (e.g. `FIREFIK_PANEL_PASSWORD_HASH=$$2a$$12$$abcd…`).
+> - **Ansible / Jinja**: wrap the value in `{% raw %}…{% endraw %}`
+>   or interpolate via `{{ hash | quote }}`.
+> - **Preferred** for any of the above: write the hash to a file
+>   (mode 0600) and set `FIREFIK_PANEL_PASSWORD_HASH_FILE` instead —
+>   no escaping required.
+>
+> `firefik-server` validates the hash on startup since v0.14.1 and
+> refuses to boot with a clear error if it is malformed, so this
+> class of misconfiguration cannot reach runtime silently.
+
 ## GeoIP maintenance
 
 When `FIREFIK_USE_GEOIP_DB=true` and `FIREFIK_GEOIP_DB_AUTOUPDATE=true`,

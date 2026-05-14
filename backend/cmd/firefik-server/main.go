@@ -22,6 +22,7 @@ import (
 	"firefik/internal/controlplane/mca"
 	"firefik/internal/telemetry"
 
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -129,6 +130,9 @@ func run() error {
 	var panelAuth controlplane.OperatorAuthenticator
 	var panelSessions *controlplane.SessionStore
 	if panelUsername != "" && panelHash != "" {
+		if _, err := bcrypt.Cost([]byte(panelHash)); err != nil {
+			return fmt.Errorf("FIREFIK_PANEL_PASSWORD_HASH is not a valid bcrypt hash (must start with $2a$/$2b$/$2y$ and be 60 chars, e.g. `htpasswd -nbB admin pass | cut -d: -f2`); if you put it in a docker-compose .env file each `$` must be escaped as `$$`, or use FIREFIK_PANEL_PASSWORD_HASH_FILE instead: %w", err)
+		}
 		panelAuth = controlplane.SingleUserAuthenticator{Username: panelUsername, PasswordHash: panelHash}
 		panelSessions = controlplane.NewSessionStore()
 		logger.Info("panel auth enabled (session cookie)", "user", panelUsername)

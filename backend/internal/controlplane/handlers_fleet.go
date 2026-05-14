@@ -55,7 +55,7 @@ func toAgentDTO(rec AgentRecord) agentDTO {
 		Version:     rec.Identity.Version,
 		Backend:     rec.Identity.Backend,
 		Chain:       rec.Identity.Chain,
-		Labels:      rec.Identity.Labels,
+		Labels:      stripInternalLabels(rec.Identity.Labels),
 		FirstSeen:   rec.FirstSeen,
 		LastSeen:    rec.LastSeen,
 		EventCount:  rec.EventCount,

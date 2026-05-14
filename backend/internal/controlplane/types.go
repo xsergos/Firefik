@@ -51,7 +51,23 @@ type EnrollmentToken struct {
 	ConsumerIP string     `json:"consumer_ip,omitempty"`
 }
 
-const RuleSetsLabelKey = "firefik.internal.rule_sets"
+const (
+	RuleSetsLabelKey  = "firefik.internal.rule_sets"
+	HostRulesLabelKey = "firefik.internal.host_rules"
+)
+
+type HostRuleDTO struct {
+	Name      string   `json:"name"`
+	Protocol  string   `json:"protocol,omitempty"`
+	Ports     []uint16 `json:"ports,omitempty"`
+	Allowlist []string `json:"allowlist,omitempty"`
+	Blocklist []string `json:"blocklist,omitempty"`
+}
+
+type HostRulesPayload struct {
+	Default string        `json:"default"`
+	Rules   []HostRuleDTO `json:"rules"`
+}
 
 type AgentToken struct {
 	ID          string     `json:"id"`

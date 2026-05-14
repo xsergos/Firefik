@@ -17,6 +17,7 @@ func (e *Engine) applyHostRules(rf config.RulesFile) error {
 		if e.ip6backend != nil {
 			_ = e.ip6backend.RemoveHostChain()
 		}
+		e.rememberHostRules(nil, "")
 		return nil
 	}
 
@@ -34,7 +35,15 @@ func (e *Engine) applyHostRules(rf config.RulesFile) error {
 			return fmt.Errorf("apply host rules (ipv6): %w", err)
 		}
 	}
+	e.rememberHostRules(rf.HostRules, defaultPolicy)
 	return nil
+}
+
+func (e *Engine) rememberHostRules(rules []config.FileHostRuleSet, def string) {
+	e.hostMu.Lock()
+	defer e.hostMu.Unlock()
+	e.appliedHostRules = append([]config.FileHostRuleSet(nil), rules...)
+	e.appliedHostDef = def
 }
 
 func convertHostRules(fileRules []config.FileHostRuleSet) ([]HostRule, []error) {
