@@ -27,6 +27,8 @@ type FileHostRuleSet struct {
 	Ports     []uint16 `yaml:"ports"`
 	Allowlist []string `yaml:"allowlist"`
 	Blocklist []string `yaml:"blocklist"`
+	Log       bool     `yaml:"log"`
+	LogPrefix string   `yaml:"logPrefix"`
 }
 
 type RulesFile struct {

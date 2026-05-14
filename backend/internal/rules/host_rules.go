@@ -11,6 +11,8 @@ type HostRule struct {
 	Ports     []uint16
 	Allowlist []net.IPNet
 	Blocklist []net.IPNet
+	Log       bool
+	LogPrefix string
 }
 
 func (r HostRule) protoNormalised() string {

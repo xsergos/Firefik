@@ -69,6 +69,8 @@ func convertHostRules(fileRules []config.FileHostRuleSet) ([]HostRule, []error) 
 			Ports:     append([]uint16(nil), fr.Ports...),
 			Allowlist: allowNets,
 			Blocklist: blockNets,
+			Log:       fr.Log,
+			LogPrefix: strings.TrimSpace(fr.LogPrefix),
 		})
 	}
 	return out, errs

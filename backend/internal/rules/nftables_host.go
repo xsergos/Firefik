@@ -40,16 +40,31 @@ func (b *NFTablesBackend) ApplyHostRules(rules []HostRule, defaultPolicy string)
 	for _, rule := range rules {
 		proto := strings.ToLower(strings.TrimSpace(rule.Protocol))
 		for _, peer := range rule.Blocklist {
+			if rule.Log {
+				if err := b.addHostNflog(chain, proto, rule.Ports, peer, rule.LogPrefix, "DROP"); err != nil {
+					return fmt.Errorf("host rule %q blocklist log %s: %w", rule.Name, peer.String(), err)
+				}
+			}
 			if err := b.addHostMatch(chain, proto, rule.Ports, peer, expr.VerdictDrop); err != nil {
 				return fmt.Errorf("host rule %q blocklist %s: %w", rule.Name, peer.String(), err)
 			}
 		}
 		for _, peer := range rule.Allowlist {
+			if rule.Log {
+				if err := b.addHostNflog(chain, proto, rule.Ports, peer, rule.LogPrefix, "ACCEPT"); err != nil {
+					return fmt.Errorf("host rule %q allowlist log %s: %w", rule.Name, peer.String(), err)
+				}
+			}
 			if err := b.addHostMatch(chain, proto, rule.Ports, peer, expr.VerdictAccept); err != nil {
 				return fmt.Errorf("host rule %q allowlist %s: %w", rule.Name, peer.String(), err)
 			}
 		}
 		if len(rule.Allowlist) == 0 && len(rule.Blocklist) == 0 {
+			if rule.Log {
+				if err := b.addHostNflog(chain, proto, rule.Ports, net.IPNet{}, rule.LogPrefix, "ACCEPT"); err != nil {
+					return fmt.Errorf("host rule %q bare allow log: %w", rule.Name, err)
+				}
+			}
 			if err := b.addHostMatch(chain, proto, rule.Ports, net.IPNet{}, expr.VerdictAccept); err != nil {
 				return fmt.Errorf("host rule %q bare allow: %w", rule.Name, err)
 			}
@@ -124,6 +139,43 @@ func (b *NFTablesBackend) flushHostChainRules(chain *nftables.Chain) error {
 		}
 	}
 	return b.conn.Flush()
+}
+
+func (b *NFTablesBackend) addHostNflog(
+	chain *nftables.Chain,
+	proto string,
+	ports []uint16,
+	peer net.IPNet,
+	logPrefix, actionType string,
+) error {
+	prefix := strings.TrimSpace(logPrefix)
+	if prefix == "" {
+		prefix = "firefik-host-" + actionType
+	}
+	if len(prefix) > LogPrefixMaxLen {
+		prefix = prefix[:LogPrefixMaxLen]
+	}
+	build := func(matchExtra []expr.Any) {
+		exprs := make([]expr.Any, 0, 8+len(matchExtra))
+		if peer.IP != nil {
+			exprs = append(exprs, srcNetMatchExprs(peer)...)
+		}
+		exprs = append(exprs, matchExtra...)
+		exprs = append(exprs, nflogExpr(prefix, actionType))
+		b.conn.AddRule(&nftables.Rule{Table: b.table, Chain: chain, Exprs: exprs})
+	}
+	if proto == "tcp" || proto == "udp" {
+		if len(ports) == 0 {
+			build(protoAnyPortExprs(proto))
+			return nil
+		}
+		for _, port := range ports {
+			build(protoPortExprs(proto, port))
+		}
+		return nil
+	}
+	build(nil)
+	return nil
 }
 
 func (b *NFTablesBackend) addHostMatch(

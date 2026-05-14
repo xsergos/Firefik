@@ -187,3 +187,33 @@ host_rules:
 		t.Errorf("block rule blocklist: %v", rf.HostRules[1].Blocklist)
 	}
 }
+
+func TestLoadRulesFile_HostRules_LogField(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "host.yml")
+	content := `host_rules:
+  - name: ssh
+    protocol: tcp
+    ports: [22]
+    log: true
+    logPrefix: HOST-SSH
+  - name: web
+    protocol: tcp
+    ports: [80]
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	rf, err := LoadRulesFile(path)
+	if err != nil {
+		t.Fatalf("LoadRulesFile: %v", err)
+	}
+	if !rf.HostRules[0].Log {
+		t.Errorf("ssh rule should have log=true: %+v", rf.HostRules[0])
+	}
+	if rf.HostRules[0].LogPrefix != "HOST-SSH" {
+		t.Errorf("ssh rule logPrefix = %q", rf.HostRules[0].LogPrefix)
+	}
+	if rf.HostRules[1].Log {
+		t.Errorf("web rule should default log=false: %+v", rf.HostRules[1])
+	}
+}

@@ -604,6 +604,8 @@ func (s *engineSnapshotSource) Snapshot(ctx context.Context, id controlplane.Age
 				Ports:     append([]uint16(nil), hr.Ports...),
 				Allowlist: append([]string(nil), hr.Allowlist...),
 				Blocklist: append([]string(nil), hr.Blocklist...),
+				Log:       hr.Log,
+				LogPrefix: hr.LogPrefix,
 			})
 		}
 		if body, jerr := json.Marshal(payload); jerr == nil {

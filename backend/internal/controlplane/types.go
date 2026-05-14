@@ -62,6 +62,8 @@ type HostRuleDTO struct {
 	Ports     []uint16 `json:"ports,omitempty"`
 	Allowlist []string `json:"allowlist,omitempty"`
 	Blocklist []string `json:"blocklist,omitempty"`
+	Log       bool     `json:"log,omitempty"`
+	LogPrefix string   `json:"logPrefix,omitempty"`
 }
 
 type HostRulesPayload struct {

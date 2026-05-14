@@ -40,16 +40,31 @@ func (b *IPTablesBackend) ApplyHostRules(rules []HostRule, defaultPolicy string)
 	for _, rule := range rules {
 		proto := rule.protoNormalised()
 		for _, peer := range rule.Blocklist {
+			if rule.Log {
+				if err := b.appendHostNflog(proto, rule.Ports, peer, rule.LogPrefix, "DROP"); err != nil {
+					return fmt.Errorf("host rule %q blocklist log %s: %w", rule.Name, peer.String(), err)
+				}
+			}
 			if err := b.appendHostRule(proto, rule.Ports, peer, "DROP"); err != nil {
 				return fmt.Errorf("host rule %q blocklist %s: %w", rule.Name, peer.String(), err)
 			}
 		}
 		for _, peer := range rule.Allowlist {
+			if rule.Log {
+				if err := b.appendHostNflog(proto, rule.Ports, peer, rule.LogPrefix, "ACCEPT"); err != nil {
+					return fmt.Errorf("host rule %q allowlist log %s: %w", rule.Name, peer.String(), err)
+				}
+			}
 			if err := b.appendHostRule(proto, rule.Ports, peer, "ACCEPT"); err != nil {
 				return fmt.Errorf("host rule %q allowlist %s: %w", rule.Name, peer.String(), err)
 			}
 		}
 		if len(rule.Allowlist) == 0 && len(rule.Blocklist) == 0 {
+			if rule.Log {
+				if err := b.appendHostNflog(proto, rule.Ports, net.IPNet{}, rule.LogPrefix, "ACCEPT"); err != nil {
+					return fmt.Errorf("host rule %q bare allow log: %w", rule.Name, err)
+				}
+			}
 			if err := b.appendHostRule(proto, rule.Ports, net.IPNet{}, "ACCEPT"); err != nil {
 				return fmt.Errorf("host rule %q bare allow: %w", rule.Name, err)
 			}
@@ -82,6 +97,28 @@ func (b *IPTablesBackend) appendHostRule(proto string, ports []uint16, peer net.
 		}
 	}
 	args = append(args, "-j", target)
+	return b.ipt.Append(filterTable, hostChainName, args...)
+}
+
+func (b *IPTablesBackend) appendHostNflog(proto string, ports []uint16, peer net.IPNet, logPrefix, actionType string) error {
+	prefix := strings.TrimSpace(logPrefix)
+	if prefix == "" {
+		prefix = "firefik-host-" + actionType
+	}
+	if len(prefix) > LogPrefixMaxLen {
+		prefix = prefix[:LogPrefixMaxLen]
+	}
+	args := make([]string, 0, 14)
+	if peer.IP != nil {
+		args = append(args, "-s", peer.String())
+	}
+	if proto != "" {
+		args = append(args, "-p", proto)
+		if len(ports) > 0 && (proto == "tcp" || proto == "udp") {
+			args = append(args, "-m", "multiport", "--dports", joinPorts(ports))
+		}
+	}
+	args = append(args, "-j", "NFLOG", "--nflog-group", strconv.Itoa(NflogGroup), "--nflog-prefix", prefix)
 	return b.ipt.Append(filterTable, hostChainName, args...)
 }
 

@@ -319,6 +319,8 @@ func (s *HTTPServer) handleFleetRules(w http.ResponseWriter, r *http.Request) {
 					"ports":     ports,
 					"allowlist": allow,
 					"blocklist": block,
+					"log":       hr.Log,
+					"logPrefix": hr.LogPrefix,
 				})
 			}
 			out = append(out, fleetRuleDTO{
