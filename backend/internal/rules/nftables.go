@@ -188,6 +188,7 @@ func (b *NFTablesBackend) Cleanup() error {
 	if b.fwdChain != nil {
 		rules, err := b.conn.GetRules(b.table, b.fwdChain)
 		if err == nil {
+			deleted := false
 			for _, r := range rules {
 				for _, e := range r.Exprs {
 					v, ok := e.(*expr.Verdict)
@@ -196,8 +197,14 @@ func (b *NFTablesBackend) Cleanup() error {
 					}
 					if _, matched := mine[v.Chain]; matched {
 						_ = b.conn.DelRule(r)
+						deleted = true
 						break
 					}
+				}
+			}
+			if deleted {
+				if err := b.conn.Flush(); err != nil {
+					return fmt.Errorf("flush forward rule deletions: %w", err)
 				}
 			}
 		}
