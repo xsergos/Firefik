@@ -175,7 +175,7 @@ func (s *Server) handleGetPolicy(c *gin.Context) {
 		DSL:     string(p.SourceBytes),
 	}
 	for _, rs := range comp.RuleSets {
-		detail.RuleSets = append(detail.RuleSets, ruleSetToDTO(rs))
+		detail.RuleSets = append(detail.RuleSets, RuleSetToDTO(rs))
 	}
 	c.JSON(http.StatusOK, detail)
 }
@@ -265,7 +265,7 @@ func (s *Server) handleSimulatePolicy(c *gin.Context) {
 			}
 			cfg = rules.ApplyPolicies(cfg, labels, map[string]*policy.Policy{pol.Name: pol})
 			for _, rs := range cfg.RuleSets {
-				resp.RuleSets = append(resp.RuleSets, ruleSetToDTO(rs))
+				resp.RuleSets = append(resp.RuleSets, RuleSetToDTO(rs))
 			}
 			resp.DefaultPolicy = cfg.DefaultPolicy
 			resp.LabelsSeen = labels
@@ -275,7 +275,7 @@ func (s *Server) handleSimulatePolicy(c *gin.Context) {
 	}
 
 	for _, rs := range comp.RuleSets {
-		resp.RuleSets = append(resp.RuleSets, ruleSetToDTO(rs))
+		resp.RuleSets = append(resp.RuleSets, RuleSetToDTO(rs))
 	}
 	resp.LabelsSeen = labels
 	c.JSON(http.StatusOK, resp)

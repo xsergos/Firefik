@@ -51,6 +51,8 @@ type EnrollmentToken struct {
 	ConsumerIP string     `json:"consumer_ip,omitempty"`
 }
 
+const RuleSetsLabelKey = "firefik.internal.rule_sets"
+
 type AgentToken struct {
 	ID          string     `json:"id"`
 	Name        string     `json:"name"`

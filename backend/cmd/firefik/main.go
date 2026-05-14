@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -558,6 +559,15 @@ type engineSnapshotSource struct {
 	traffic *api.TrafficStore
 }
 
+func copyLabelsWithRuleSets(orig map[string]string, ruleSetsJSON string) map[string]string {
+	out := make(map[string]string, len(orig)+1)
+	for k, v := range orig {
+		out[k] = v
+	}
+	out[controlplane.RuleSetsLabelKey] = ruleSetsJSON
+	return out
+}
+
 func deriveSources(firewallStatus string, labels map[string]string) []string {
 	if firewallStatus != "active" {
 		return nil
@@ -587,10 +597,20 @@ func (s *engineSnapshotSource) Snapshot(ctx context.Context, id controlplane.Age
 		fwStatus := "disabled"
 		policy := ""
 		ruleCount := 0
+		labels := ctr.Labels
 		if cfg, ok := applied[sid]; ok {
 			fwStatus = "active"
 			policy = cfg.DefaultPolicy
 			ruleCount = len(cfg.RuleSets)
+			if len(cfg.RuleSets) > 0 {
+				dtos := make([]api.FirewallRuleSetDTO, 0, len(cfg.RuleSets))
+				for _, rs := range cfg.RuleSets {
+					dtos = append(dtos, api.RuleSetToDTO(rs))
+				}
+				if body, err := json.Marshal(dtos); err == nil {
+					labels = copyLabelsWithRuleSets(ctr.Labels, string(body))
+				}
+			}
 		}
 		out.Containers = append(out.Containers, controlplane.ContainerState{
 			ID:             ctr.ID,
@@ -598,7 +618,7 @@ func (s *engineSnapshotSource) Snapshot(ctx context.Context, id controlplane.Age
 			Status:         ctr.Status,
 			FirewallStatus: fwStatus,
 			DefaultPolicy:  policy,
-			Labels:         ctr.Labels,
+			Labels:         labels,
 			RuleSetCount:   ruleCount,
 			Sources:        deriveSources(fwStatus, ctr.Labels),
 		})

@@ -192,7 +192,7 @@ func (s *Server) handleGetRules(c *gin.Context) {
 			RuleSets:      make([]FirewallRuleSetDTO, 0),
 		}
 		for _, rs := range cfg.RuleSets {
-			rsDTO := ruleSetToDTO(rs)
+			rsDTO := RuleSetToDTO(rs)
 			entry.RuleSets = append(entry.RuleSets, rsDTO)
 		}
 		result = append(result, entry)
@@ -225,12 +225,12 @@ func containerToDTO(ctr docker.ContainerInfo, cfg docker.ContainerConfig, isAppl
 		RuleSets:       make([]FirewallRuleSetDTO, 0),
 	}
 	for _, rs := range cfg.RuleSets {
-		dto.RuleSets = append(dto.RuleSets, ruleSetToDTO(rs))
+		dto.RuleSets = append(dto.RuleSets, RuleSetToDTO(rs))
 	}
 	return dto
 }
 
-func ruleSetToDTO(rs docker.FirewallRuleSet) FirewallRuleSetDTO {
+func RuleSetToDTO(rs docker.FirewallRuleSet) FirewallRuleSetDTO {
 	protocol := rs.Protocol
 	if protocol == "" {
 		protocol = "tcp"

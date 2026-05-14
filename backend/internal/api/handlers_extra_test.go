@@ -273,7 +273,7 @@ func TestRuleSetToDTOAllFields(t *testing.T) {
 		GeoAllow:  []string{"US"},
 		RateLimit: &docker.RateLimitConfig{Rate: 100, Burst: 200},
 	}
-	dto := ruleSetToDTO(rs)
+	dto := RuleSetToDTO(rs)
 	if dto.Protocol != "tcp" {
 		t.Errorf("expected default tcp, got %q", dto.Protocol)
 	}
@@ -290,7 +290,7 @@ func TestRuleSetToDTOExplicitProtocol(t *testing.T) {
 		Name:     "udp-rule",
 		Protocol: "udp",
 	}
-	dto := ruleSetToDTO(rs)
+	dto := RuleSetToDTO(rs)
 	if dto.Protocol != "udp" {
 		t.Errorf("expected udp, got %q", dto.Protocol)
 	}

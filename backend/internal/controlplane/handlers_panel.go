@@ -161,7 +161,7 @@ func (s *HTTPServer) handleFleetContainers(w http.ResponseWriter, r *http.Reques
 			continue
 		}
 		for _, c := range snap.Containers {
-			labels := c.Labels
+			labels := stripInternalLabels(c.Labels)
 			if labels == nil {
 				labels = map[string]string{}
 			}
@@ -176,7 +176,7 @@ func (s *HTTPServer) handleFleetContainers(w http.ResponseWriter, r *http.Reques
 				FirewallStatus: fwStatus,
 				DefaultPolicy:  c.DefaultPolicy,
 				Labels:         labels,
-				RuleSets:       []any{},
+				RuleSets:       decodeRuleSetsFromLabels(c.Labels),
 				RuleSetCount:   c.RuleSetCount,
 				Sources:        c.Sources,
 			})
@@ -213,6 +213,35 @@ type fleetRuleDTO struct {
 	RuleSetCount  int    `json:"rule_set_count"`
 }
 
+func decodeRuleSetsFromLabels(labels map[string]string) []any {
+	raw, ok := labels[RuleSetsLabelKey]
+	if !ok || raw == "" {
+		return []any{}
+	}
+	var out []any
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return []any{}
+	}
+	if out == nil {
+		return []any{}
+	}
+	return out
+}
+
+func stripInternalLabels(labels map[string]string) map[string]string {
+	if _, ok := labels[RuleSetsLabelKey]; !ok {
+		return labels
+	}
+	out := make(map[string]string, len(labels)-1)
+	for k, v := range labels {
+		if k == RuleSetsLabelKey {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
 func (s *HTTPServer) handleFleetRules(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -244,7 +273,7 @@ func (s *HTTPServer) handleFleetRules(w http.ResponseWriter, r *http.Request) {
 				ContainerName: c.Name,
 				Status:        c.Status,
 				DefaultPolicy: defPol,
-				RuleSets:      []any{},
+				RuleSets:      decodeRuleSetsFromLabels(c.Labels),
 				RuleSetCount:  c.RuleSetCount,
 			})
 		}
