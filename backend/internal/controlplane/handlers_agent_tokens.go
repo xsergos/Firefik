@@ -34,7 +34,7 @@ func (s *HTTPServer) createAgentToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	issued, err := s.Registry.store.CreateAgentToken(r.Context(), req.Name, req.Description, operatorFingerprint(r))
+	issued, err := s.Registry.store.CreateAgentToken(r.Context(), req.Name, req.Description, s.attribute(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

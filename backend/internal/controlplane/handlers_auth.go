@@ -166,15 +166,5 @@ func clientIPFromRequest(r *http.Request) string {
 	if r == nil {
 		return ""
 	}
-	if v := r.Header.Get("X-Forwarded-For"); v != "" {
-		if i := strings.Index(v, ","); i >= 0 {
-			return strings.TrimSpace(v[:i])
-		}
-		return strings.TrimSpace(v)
-	}
-	host := r.RemoteAddr
-	if i := strings.LastIndex(host, ":"); i > 0 {
-		host = host[:i]
-	}
-	return host
+	return requestClientIP(r)
 }

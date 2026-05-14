@@ -58,7 +58,7 @@ export function AgentLogsPanel({ agentID }: { agentID: string }) {
       </div>
       <pre className="bg-muted rounded p-3 text-xs max-h-96 overflow-auto font-mono leading-tight">
         {lines.length === 0
-          ? "Waiting for log events…"
+          ? "Waiting for log events… only rule sets with log:true emit NFLOG events (e.g. firefik.firewall.web.log=true)"
           : lines
               .map((l) => {
                 const ts = new Date(l.at).toISOString();

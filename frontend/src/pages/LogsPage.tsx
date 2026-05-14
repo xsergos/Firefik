@@ -20,7 +20,11 @@ export default function LogsPage() {
       <div className="flex-1 overflow-auto font-mono text-xs border rounded-md bg-muted/30 p-3 space-y-0.5">
         {entries.length === 0 && (
           <p className="text-muted-foreground">
-            Waiting for firewall events...
+            Waiting for firewall events… only rule sets with{" "}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">log: true</code>{" "}
+            emit NFLOG events (e.g. label{" "}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">firefik.firewall.web.log=true</code>{" "}
+            on a container).
           </p>
         )}
         {entries.map((entry) => (

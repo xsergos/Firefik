@@ -139,7 +139,20 @@ func operatorFingerprint(r *http.Request) string {
 	return base
 }
 
+func (s *HTTPServer) attribute(r *http.Request) string {
+	if sess, ok := s.sessionFromRequest(r); ok && sess.Username != "" {
+		if ip := requestClientIP(r); ip != "" {
+			return sess.Username + "@" + ip
+		}
+		return sess.Username
+	}
+	return operatorFingerprint(r)
+}
+
 func requestClientIP(r *http.Request) string {
+	if v := strings.TrimSpace(r.Header.Get("X-Real-IP")); v != "" {
+		return v
+	}
 	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
 		if i := strings.IndexByte(fwd, ','); i >= 0 {
 			return strings.TrimSpace(fwd[:i])

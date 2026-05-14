@@ -339,3 +339,42 @@ func TestRequestClientIP_BareRemoteAddr(t *testing.T) {
 		t.Errorf("expected empty, got %q", got)
 	}
 }
+
+func TestRequestClientIP_PrefersXRealIPOverXForwardedFor(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "172.18.0.100:8080"
+	req.Header.Set("X-Forwarded-For", "10.0.0.1, 172.18.0.100")
+	req.Header.Set("X-Real-IP", "203.0.113.42")
+	if got := requestClientIP(req); got != "203.0.113.42" {
+		t.Errorf("X-Real-IP should win, got %q", got)
+	}
+	req.Header.Del("X-Real-IP")
+	if got := requestClientIP(req); got != "10.0.0.1" {
+		t.Errorf("X-Forwarded-For first hop should win, got %q", got)
+	}
+}
+
+func TestHTTPServer_Attribute_PrefersSessionUsername(t *testing.T) {
+	srv, _ := newTestHTTPServer(t)
+	srv.Sessions = NewSessionStore()
+	sess, _ := srv.Sessions.Create("admin")
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sess.ID})
+	req.Header.Set("X-Real-IP", "203.0.113.42")
+	req.Header.Set("Authorization", "Bearer ")
+	got := srv.attribute(req)
+	if got != "admin@203.0.113.42" {
+		t.Errorf("session username should attribute, got %q", got)
+	}
+}
+
+func TestHTTPServer_Attribute_FallsBackToBearerFingerprint(t *testing.T) {
+	srv, _ := newTestHTTPServer(t)
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.RemoteAddr = "10.0.0.5:8080"
+	req.Header.Set("Authorization", "Bearer some-token")
+	got := srv.attribute(req)
+	if got == "anonymous@10.0.0.5" {
+		t.Errorf("non-empty bearer should not be anonymous, got %q", got)
+	}
+}
