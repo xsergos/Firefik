@@ -243,9 +243,15 @@ func RuleSetToDTO(rs docker.FirewallRuleSet) FirewallRuleSetDTO {
 	if protocol == "" {
 		protocol = "tcp"
 	}
+	ports := rs.Ports
+	if ports == nil {
+		ports = []uint16{}
+	}
 	dto := FirewallRuleSetDTO{
 		Name:      rs.Name,
-		Ports:     rs.Ports,
+		Ports:     ports,
+		Allowlist: []string{},
+		Blocklist: []string{},
 		Profile:   rs.Profile,
 		Protocol:  protocol,
 		Log:       rs.Log,

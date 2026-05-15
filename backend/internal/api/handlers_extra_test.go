@@ -430,6 +430,34 @@ func TestContainerToDTOEmitsNonNilLabels(t *testing.T) {
 	}
 }
 
+func TestRuleSetToDTOEmitsNonNilSlices(t *testing.T) {
+	dto := RuleSetToDTO(docker.FirewallRuleSet{Name: "rs1"})
+	if dto.Ports == nil {
+		t.Error("Ports must be non-nil")
+	}
+	if dto.Allowlist == nil {
+		t.Error("Allowlist must be non-nil")
+	}
+	if dto.Blocklist == nil {
+		t.Error("Blocklist must be non-nil")
+	}
+	body, err := json.Marshal(dto)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	got := string(body)
+	for _, needle := range []string{`"ports":[]`, `"allowlist":[]`, `"blocklist":[]`} {
+		if !strings.Contains(got, needle) {
+			t.Errorf("expected %s in JSON, got %s", needle, got)
+		}
+	}
+	for _, needle := range []string{`"ports":null`, `"allowlist":null`, `"blocklist":null`} {
+		if strings.Contains(got, needle) {
+			t.Errorf("unexpected %s in JSON, got %s", needle, got)
+		}
+	}
+}
+
 func TestHandleGetContainersEmpty(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{}
