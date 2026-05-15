@@ -166,6 +166,7 @@ func (s *HTTPServer) handleFleetContainers(w http.ResponseWriter, r *http.Reques
 				labels = map[string]string{}
 			}
 			fwStatus := normaliseFirewallStatus(c.FirewallStatus)
+			defPol := normaliseDefaultPolicy(c.DefaultPolicy)
 			out = append(out, fleetContainerDTO{
 				AgentID:        rec.Identity.InstanceID,
 				AgentHostname:  rec.Identity.Hostname,
@@ -174,9 +175,9 @@ func (s *HTTPServer) handleFleetContainers(w http.ResponseWriter, r *http.Reques
 				Status:         c.Status,
 				Enabled:        fwStatus == "active",
 				FirewallStatus: fwStatus,
-				DefaultPolicy:  c.DefaultPolicy,
+				DefaultPolicy:  defPol,
 				Labels:         labels,
-				RuleSets:       decodeRuleSetsFromLabels(c.Labels),
+				RuleSets:       sanitizeRuleSets(decodeRuleSetsFromLabels(c.Labels)),
 				RuleSetCount:   c.RuleSetCount,
 				Sources:        c.Sources,
 			})
@@ -200,6 +201,41 @@ func normaliseFirewallStatus(s string) string {
 	default:
 		return s
 	}
+}
+
+func normaliseDefaultPolicy(s string) string {
+	switch strings.ToUpper(strings.TrimSpace(s)) {
+	case "DROP":
+		return "DROP"
+	case "ACCEPT":
+		return "ACCEPT"
+	case "RETURN":
+		return "RETURN"
+	default:
+		return "RETURN"
+	}
+}
+
+func sanitizeRuleSets(in []any) []any {
+	if in == nil {
+		return []any{}
+	}
+	for _, rs := range in {
+		m, ok := rs.(map[string]any)
+		if !ok {
+			continue
+		}
+		if v, exists := m["ports"]; !exists || v == nil {
+			m["ports"] = []any{}
+		}
+		if v, exists := m["allowlist"]; !exists || v == nil {
+			m["allowlist"] = []any{}
+		}
+		if v, exists := m["blocklist"]; !exists || v == nil {
+			m["blocklist"] = []any{}
+		}
+	}
+	return in
 }
 
 type fleetRuleDTO struct {
@@ -279,10 +315,7 @@ func (s *HTTPServer) handleFleetRules(w http.ResponseWriter, r *http.Request) {
 			if c.RuleSetCount == 0 && c.FirewallStatus != "active" {
 				continue
 			}
-			defPol := c.DefaultPolicy
-			if defPol == "" {
-				defPol = "ACCEPT"
-			}
+			defPol := normaliseDefaultPolicy(c.DefaultPolicy)
 			out = append(out, fleetRuleDTO{
 				AgentID:       rec.Identity.InstanceID,
 				AgentHostname: rec.Identity.Hostname,
@@ -290,7 +323,7 @@ func (s *HTTPServer) handleFleetRules(w http.ResponseWriter, r *http.Request) {
 				ContainerName: c.Name,
 				Status:        c.Status,
 				DefaultPolicy: defPol,
-				RuleSets:      decodeRuleSetsFromLabels(c.Labels),
+				RuleSets:      sanitizeRuleSets(decodeRuleSetsFromLabels(c.Labels)),
 				RuleSetCount:  c.RuleSetCount,
 			})
 		}
@@ -512,6 +545,10 @@ func (s *HTTPServer) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/v1/policies/")
 	if rest == r.URL.Path || rest == "" {
 		http.Error(w, "policy name required", http.StatusBadRequest)
+		return
+	}
+	if rest == "validate" && r.Method == http.MethodPost {
+		s.handlePolicyValidate(w, r)
 		return
 	}
 	parts := strings.SplitN(rest, "/", 2)

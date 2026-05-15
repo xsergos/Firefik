@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -123,6 +124,69 @@ func TestHandleFleetContainers_StripsInternalRuleSetsLabel(t *testing.T) {
 	}
 	if len(out[0].RuleSets) != 1 {
 		t.Fatalf("ruleSets should be decoded from the (now-stripped) label: %v", out[0].RuleSets)
+	}
+}
+
+func TestHandleFleetContainers_NormalisesEmptyDefaultPolicy(t *testing.T) {
+	srv, store := newTestHTTPServer(t)
+	id := AgentIdentity{InstanceID: "host-norm", Hostname: "host-norm"}
+	if err := store.UpsertAgent(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	snap := AgentSnapshot{
+		Agent: id,
+		At:    time.Now().UTC(),
+		Containers: []ContainerState{{
+			ID:            "rehydrate-id",
+			Name:          "app",
+			Status:        "running",
+			DefaultPolicy: "",
+		}},
+	}
+	if err := store.RecordSnapshot(context.Background(), snap); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/containers", nil)
+	srv.handleFleetContainers(rec, req)
+	var out []fleetContainerDTO
+	_ = json.Unmarshal(rec.Body.Bytes(), &out)
+	if len(out) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(out))
+	}
+	if out[0].DefaultPolicy != "RETURN" {
+		t.Fatalf("empty DefaultPolicy should be normalised to RETURN, got %q", out[0].DefaultPolicy)
+	}
+}
+
+func TestSanitizeRuleSets_FillsNilSlices(t *testing.T) {
+	in := []any{
+		map[string]any{"name": "rs1"},
+		map[string]any{"name": "rs2", "ports": nil, "allowlist": nil, "blocklist": nil},
+		map[string]any{"name": "rs3", "ports": []any{float64(80)}, "allowlist": []any{"10/8"}, "blocklist": []any{"1.2.3.4"}},
+	}
+	out := sanitizeRuleSets(in)
+	for i, raw := range out {
+		m := raw.(map[string]any)
+		for _, k := range []string{"ports", "allowlist", "blocklist"} {
+			v, ok := m[k]
+			if !ok || v == nil {
+				t.Errorf("row %d missing %s after sanitize: %+v", i, k, m)
+			}
+		}
+	}
+}
+
+func TestHandlePolicy_PostValidateAtRoot(t *testing.T) {
+	srv, _ := newTestHTTPServer(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/policies/validate", strings.NewReader(`{"dsl":"allow tcp from 10.0.0.0/8 to port 22"}`))
+	srv.handlePolicy(rec, req)
+	if rec.Code == http.StatusMethodNotAllowed {
+		t.Fatalf("POST /v1/policies/validate should not return 405: body=%s", rec.Body.String())
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
