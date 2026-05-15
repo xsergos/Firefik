@@ -184,11 +184,15 @@ func (s *Server) handleGetRules(c *gin.Context) {
 
 	result := make([]RuleEntry, 0, len(applied))
 	for id, cfg := range applied {
+		policy := cfg.DefaultPolicy
+		if policy == "" {
+			policy = "RETURN"
+		}
 		entry := RuleEntry{
 			ContainerID:   id,
 			ContainerName: names[id],
 			Status:        statuses[id],
-			DefaultPolicy: cfg.DefaultPolicy,
+			DefaultPolicy: policy,
 			RuleSets:      make([]FirewallRuleSetDTO, 0),
 		}
 		for _, rs := range cfg.RuleSets {
@@ -214,6 +218,10 @@ func containerToDTO(ctr docker.ContainerInfo, cfg docker.ContainerConfig, isAppl
 	default:
 		fwStatus = "inactive"
 	}
+	labels := ctr.Labels
+	if labels == nil {
+		labels = map[string]string{}
+	}
 	dto := ContainerDTO{
 		ID:             ctr.ID,
 		Name:           ctr.Name,
@@ -221,7 +229,7 @@ func containerToDTO(ctr docker.ContainerInfo, cfg docker.ContainerConfig, isAppl
 		Enabled:        cfg.Enable,
 		FirewallStatus: fwStatus,
 		DefaultPolicy:  policy,
-		Labels:         ctr.Labels,
+		Labels:         labels,
 		RuleSets:       make([]FirewallRuleSetDTO, 0),
 	}
 	for _, rs := range cfg.RuleSets {

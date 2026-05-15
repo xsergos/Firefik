@@ -2,6 +2,9 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +17,8 @@ import (
 	"firefik/internal/audit"
 	"firefik/internal/config"
 	"firefik/internal/docker"
+	"firefik/internal/logstream"
+	"firefik/internal/rules"
 )
 
 func websocketDial(t *testing.T, url string) (*websocket.Conn, *http.Response, error) {
@@ -368,6 +373,60 @@ func TestHandleGetRulesEmpty(t *testing.T) {
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Errorf("code=%d", rec.Code)
+	}
+}
+
+type stubBackendWithAppliedIDs struct {
+	stubBackend
+	ids []string
+}
+
+func (s stubBackendWithAppliedIDs) ListAppliedContainerIDs() ([]string, error) { return s.ids, nil }
+
+func TestHandleGetRulesDefaultsEmptyPolicy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+	reader := stubDocker{containers: []docker.ContainerInfo{
+		{ID: "aaaaaaaaaaaa", Name: "n1", Status: "running"},
+	}}
+	backend := stubBackendWithAppliedIDs{ids: []string{"aaaaaaaaaaaa"}}
+	engine := rules.NewEngine(backend, reader, cfg, logger)
+	if err := engine.Rehydrate(context.Background()); err != nil {
+		t.Fatalf("Rehydrate: %v", err)
+	}
+	hub := logstream.NewHub(logger)
+	traffic := NewTrafficStore()
+	s := NewServer(cfg, reader, engine, hub, logger, traffic)
+
+	r := gin.New()
+	r.GET("/r", s.handleGetRules)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/r", nil)
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var out []RuleEntry
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(out))
+	}
+	if out[0].DefaultPolicy != "RETURN" {
+		t.Errorf("expected defaultPolicy=RETURN for empty policy, got %q", out[0].DefaultPolicy)
+	}
+}
+
+func TestContainerToDTOEmitsNonNilLabels(t *testing.T) {
+	ctr := docker.ContainerInfo{ID: "id1", Name: "n", Status: "running", Labels: nil}
+	dto := containerToDTO(ctr, docker.ContainerConfig{}, false)
+	if dto.Labels == nil {
+		t.Fatal("Labels should be non-nil empty map when ctr.Labels is nil")
+	}
+	if len(dto.Labels) != 0 {
+		t.Errorf("Labels should be empty, got %v", dto.Labels)
 	}
 }
 
