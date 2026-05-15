@@ -386,6 +386,61 @@ func TestHandleEventSnapshotStored(t *testing.T) {
 	}
 }
 
+func TestHandleEventSnapshotPersistedToStore(t *testing.T) {
+	reg := NewRegistry(nil)
+	s := &GRPCServer{Registry: reg}
+	ev := &pb.AgentEvent{
+		Kind: &pb.AgentEvent_Snapshot{Snapshot: &pb.AgentSnapshot{
+			Agent: &pb.AgentIdentity{
+				InstanceId: "store-agent",
+				Hostname:   "h",
+				Labels:     map[string]string{HostRulesLabelKey: `{"default":"DROP","rules":[{"name":"ssh"}]}`},
+			},
+			At: timestamppb.Now(),
+			Containers: []*pb.ContainerState{
+				{Id: "c1", Name: "n1", Status: "running", FirewallStatus: "active",
+					Labels: map[string]string{RuleSetsLabelKey: `[{"name":"r1"}]`}, RuleSetCount: 1},
+			},
+		}},
+	}
+	s.handleEvent(ev)
+	snap, err := reg.store.LatestSnapshot(context.Background(), "store-agent")
+	if err != nil {
+		t.Fatalf("LatestSnapshot: %v", err)
+	}
+	if snap == nil {
+		t.Fatal("expected snapshot persisted in store, got nil")
+	}
+	if snap.Agent.Labels[HostRulesLabelKey] == "" {
+		t.Errorf("host_rules label missing from persisted snapshot: %+v", snap.Agent.Labels)
+	}
+	if len(snap.Containers) != 1 || snap.Containers[0].Labels[RuleSetsLabelKey] == "" {
+		t.Errorf("rule_sets label missing from persisted container: %+v", snap.Containers)
+	}
+}
+
+func TestHandleEventAuditPersistedToStore(t *testing.T) {
+	reg := NewRegistry(nil)
+	s := &GRPCServer{Registry: reg}
+	payload, _ := structpb.NewStruct(map[string]any{"action": "apply"})
+	s.handleEvent(&pb.AgentEvent{
+		Kind: &pb.AgentEvent_Audit{Audit: &pb.AuditEvent{
+			Agent: &pb.AgentIdentity{InstanceId: "audit-store"},
+			Event: payload,
+		}},
+	})
+	events, err := reg.store.ListAuditEvents(context.Background(), "audit-store", 10)
+	if err != nil {
+		t.Fatalf("ListAuditEvents: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 audit event persisted, got %d", len(events))
+	}
+	if events[0].Payload["action"] != "apply" {
+		t.Errorf("audit payload not preserved: %+v", events[0].Payload)
+	}
+}
+
 func TestHandleEventSnapshotNilInnerIgnored(t *testing.T) {
 	reg := NewRegistry(nil)
 	s := &GRPCServer{Registry: reg}

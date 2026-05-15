@@ -159,6 +159,7 @@ func (s *GRPCServer) handleEvent(ev *pb.AgentEvent) {
 		s.Registry.mu.Lock()
 		e.Snapshot = &snap
 		s.Registry.mu.Unlock()
+		s.Registry.RecordSnapshot(snap)
 	case *pb.AgentEvent_Audit:
 		if k.Audit == nil || k.Audit.Agent == nil {
 			return
@@ -167,6 +168,7 @@ func (s *GRPCServer) handleEvent(ev *pb.AgentEvent) {
 		s.Registry.mu.Lock()
 		e.Events++
 		s.Registry.mu.Unlock()
+		s.Registry.RecordAuditEvent(toNativeAuditEnvelope(k.Audit))
 	case *pb.AgentEvent_Heartbeat:
 		if k.Heartbeat == nil || k.Heartbeat.Agent == nil {
 			return
@@ -285,6 +287,14 @@ func toNativeSnapshot(in *pb.AgentSnapshot) AgentSnapshot {
 			Accepted:  b.Accepted,
 			Dropped:   b.Dropped,
 		})
+	}
+	return out
+}
+
+func toNativeAuditEnvelope(in *pb.AuditEvent) AuditEventEnvelope {
+	out := AuditEventEnvelope{Agent: toNativeIdentity(in.Agent)}
+	if in.Event != nil {
+		out.Event = in.Event.AsMap()
 	}
 	return out
 }
