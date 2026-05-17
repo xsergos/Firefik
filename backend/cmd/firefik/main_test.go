@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
+	"net"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -444,3 +447,68 @@ func TestEngineSnapshotSourceWithContainers(t *testing.T) {
 		t.Errorf("expected disabled (no applied rules), got %q", c.FirewallStatus)
 	}
 }
+
+func TestEngineSnapshotSourceEmbedsHostRulesLabel(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	dir := t.TempDir()
+	rulesPath := filepath.Join(dir, "rules.conf")
+	rulesYAML := []byte(`host_default: DROP
+host_rules:
+  - name: ssh
+    ports: [45333]
+    protocol: tcp
+    log: true
+  - name: http
+    ports: [80, 443]
+    protocol: tcp
+    log: true
+`)
+	if err := os.WriteFile(rulesPath, rulesYAML, 0o600); err != nil {
+		t.Fatalf("write rules: %v", err)
+	}
+	cfg := &config.Config{ChainName: "FIREFIK", EffectiveChain: "FIREFIK", Backend: "iptables", ConfigFile: rulesPath}
+	dr := &fakeDockerReader{}
+	engine := rules.NewEngine(stubBackendFiles{}, dr, cfg, logger)
+	if err := engine.Reconcile(context.Background(), audit.SourceConfigReload); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	src := &engineSnapshotSource{engine: engine, docker: dr}
+	snap, err := src.Snapshot(context.Background(), controlplane.AgentIdentity{InstanceID: "lmd-comm-01", Hostname: "lmd-comm-01"})
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	raw, ok := snap.Agent.Labels[controlplane.HostRulesLabelKey]
+	if !ok || raw == "" {
+		t.Fatalf("expected host_rules label, got labels=%+v", snap.Agent.Labels)
+	}
+	var payload controlplane.HostRulesPayload
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		t.Fatalf("unmarshal label: %v raw=%s", err, raw)
+	}
+	if payload.Default != "DROP" {
+		t.Errorf("default policy not preserved: %q", payload.Default)
+	}
+	if len(payload.Rules) != 2 {
+		t.Fatalf("expected 2 host rules, got %d: %+v", len(payload.Rules), payload.Rules)
+	}
+	if payload.Rules[0].Name != "ssh" || len(payload.Rules[0].Ports) != 1 || payload.Rules[0].Ports[0] != 45333 || !payload.Rules[0].Log {
+		t.Errorf("ssh rule mangled: %+v", payload.Rules[0])
+	}
+	if payload.Rules[1].Name != "http" || len(payload.Rules[1].Ports) != 2 || !payload.Rules[1].Log {
+		t.Errorf("http rule mangled: %+v", payload.Rules[1])
+	}
+}
+
+type stubBackendFiles struct{}
+
+func (stubBackendFiles) SetupChains() error { return nil }
+func (stubBackendFiles) Cleanup() error     { return nil }
+func (stubBackendFiles) ApplyContainerRules(string, string, []net.IP, []docker.FirewallRuleSet, string, []net.IPNet) error {
+	return nil
+}
+func (stubBackendFiles) RemoveContainerChains(string) error            { return nil }
+func (stubBackendFiles) ApplyHostRules([]rules.HostRule, string) error { return nil }
+func (stubBackendFiles) RemoveHostChain() error                        { return nil }
+func (stubBackendFiles) ListAppliedContainerIDs() ([]string, error)    { return nil, nil }
+func (stubBackendFiles) Healthy() (rules.HealthReport, error)          { return rules.HealthReport{}, nil }
