@@ -165,6 +165,7 @@ func (b *NFTablesBackend) Cleanup() error {
 	}
 
 	mine := make(map[string]*nftables.Chain)
+	var mineMain, mineSubs []*nftables.Chain
 	myShortIDs := make(map[string]struct{})
 	var otherContainerChains int
 	for _, ch := range chains {
@@ -177,7 +178,10 @@ func (b *NFTablesBackend) Cleanup() error {
 		id, rsSub, ok := parseInstanceChainName(ch.Name, prefix)
 		if ok {
 			mine[ch.Name] = ch
-			if !rsSub {
+			if rsSub {
+				mineSubs = append(mineSubs, ch)
+			} else {
+				mineMain = append(mineMain, ch)
 				myShortIDs[id] = struct{}{}
 			}
 			continue
@@ -210,7 +214,16 @@ func (b *NFTablesBackend) Cleanup() error {
 		}
 	}
 
-	for _, ch := range mine {
+	for _, ch := range mineMain {
+		b.conn.DelChain(ch)
+	}
+	if len(mineMain) > 0 {
+		if err := b.conn.Flush(); err != nil {
+			return fmt.Errorf("flush main chain deletions: %w", err)
+		}
+	}
+
+	for _, ch := range mineSubs {
 		b.conn.DelChain(ch)
 	}
 
