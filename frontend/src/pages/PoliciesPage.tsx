@@ -66,8 +66,6 @@ export default function PoliciesPage() {
   useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     if (!buffer.trim()) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setValidation(null);
       return;
     }
     debounceRef.current = window.setTimeout(() => {
@@ -80,6 +78,7 @@ export default function PoliciesPage() {
     };
   }, [buffer]);
 
+  const shownValidation = buffer.trim() ? validation : null;
   const effectiveName = useMemo(() => draftName || selected || "", [draftName, selected]);
 
   const onSimulate = async () => {
@@ -202,7 +201,7 @@ export default function PoliciesPage() {
             />
           </Suspense>
 
-          <ValidationPanel validation={validation} />
+          <ValidationPanel validation={shownValidation} />
 
           <div className="flex flex-wrap gap-2 items-center">
             <label className="flex flex-col gap-1 text-sm flex-1 min-w-[260px]">
@@ -223,7 +222,7 @@ export default function PoliciesPage() {
             </button>
             <button
               onClick={onSave}
-              disabled={busy !== null || !validation?.ok}
+              disabled={busy !== null || !shownValidation?.ok}
               className="bg-primary text-primary-foreground px-3 py-1.5 rounded text-sm disabled:opacity-50"
             >
               {busy === "save" ? "Saving…" : "Save"}

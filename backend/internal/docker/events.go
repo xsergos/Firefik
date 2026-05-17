@@ -36,8 +36,10 @@ func (c *Client) WatchEvents(ctx context.Context, handler EventHandler, onError 
 		})
 		dispatchEvents(ctx, result.Messages, result.Err, handler, onError)
 
-		if ctx.Err() != nil {
-			return nil //nolint:nilerr
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
 		}
 
 		if time.Since(connectedAt) >= stableWindow {

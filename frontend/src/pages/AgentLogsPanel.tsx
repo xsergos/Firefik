@@ -19,14 +19,18 @@ function wsURL(agentID: string): string {
 export function AgentLogsPanel({ agentID }: { agentID: string }) {
   const [lines, setLines] = useState<LogLine[]>([]);
   const [status, setStatus] = useState<"connecting" | "open" | "closed" | "error">("connecting");
+  const [activeAgent, setActiveAgent] = useState(agentID);
   const wsRef = useRef<WebSocket | null>(null);
+
+  if (activeAgent !== agentID) {
+    setActiveAgent(agentID);
+    setStatus("connecting");
+  }
 
   useEffect(() => {
     if (!agentID) return;
     const ws = new WebSocket(wsURL(agentID));
     wsRef.current = ws;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setStatus("connecting");
 
     ws.onopen = () => setStatus("open");
     ws.onclose = () => setStatus("closed");
@@ -45,6 +49,10 @@ export function AgentLogsPanel({ agentID }: { agentID: string }) {
     };
 
     return () => {
+      ws.onopen = null;
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.onmessage = null;
       ws.close();
     };
   }, [agentID]);
