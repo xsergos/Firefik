@@ -50,7 +50,6 @@ func TestAuthenticateBearer_StoreBackedAgentTokenAccepted(t *testing.T) {
 	if plaintext != issued.Token {
 		t.Fatalf("plaintext: %q want %q", plaintext, issued.Token)
 	}
-	// Touch persists last_used_at.
 	out, _ := store.ListAgentTokens(context.Background(), false)
 	if out[0].LastUsedAt == nil {
 		t.Fatalf("expected last_used_at to be set after auth, got %+v", out[0])
@@ -76,7 +75,6 @@ func TestAuthenticateBearer_UnknownTokenRejected(t *testing.T) {
 }
 
 func TestAuthenticateBearer_NoAuthMode(t *testing.T) {
-	// no legacy token AND no store → auth disabled (legacy "no auth required").
 	_, err := authenticateBearer(mdCtx("anything"), "", nil)
 	if err != nil {
 		t.Fatalf("no-auth mode should accept any header: %v", err)
@@ -96,7 +94,6 @@ func TestAuthenticateBearer_LegacyTokenOverridesStoreLookup(t *testing.T) {
 
 func TestAuthenticateBearer_StoreFallbackThenReject(t *testing.T) {
 	store := controlplane.NewMemoryStore()
-	// Legacy is set; store has unrelated tokens; incoming neither matches legacy nor store.
 	_, _ = store.CreateAgentToken(context.Background(), "x", "", "ci")
 	_, err := authenticateBearer(mdCtx("agt_nope"), "legacy", store)
 	if status.Code(err) != codes.Unauthenticated {

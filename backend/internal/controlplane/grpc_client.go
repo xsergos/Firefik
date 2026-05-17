@@ -92,7 +92,23 @@ func (c *GRPCClient) SendSnapshot(snap AgentSnapshot) error {
 	if st == nil {
 		return ErrStreamDown
 	}
-	snap.Agent = c.cfg.Identity
+	if snap.Agent.Labels == nil {
+		snap.Agent.Labels = c.cfg.Identity.Labels
+	} else if c.cfg.Identity.Labels != nil {
+		merged := make(map[string]string, len(c.cfg.Identity.Labels)+len(snap.Agent.Labels))
+		for k, v := range c.cfg.Identity.Labels {
+			merged[k] = v
+		}
+		for k, v := range snap.Agent.Labels {
+			merged[k] = v
+		}
+		snap.Agent.Labels = merged
+	}
+	snap.Agent.InstanceID = c.cfg.Identity.InstanceID
+	snap.Agent.Hostname = c.cfg.Identity.Hostname
+	snap.Agent.Version = c.cfg.Identity.Version
+	snap.Agent.Backend = c.cfg.Identity.Backend
+	snap.Agent.Chain = c.cfg.Identity.Chain
 	if snap.At.IsZero() {
 		snap.At = time.Now().UTC()
 	}

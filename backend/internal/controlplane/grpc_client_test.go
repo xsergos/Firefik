@@ -482,3 +482,73 @@ func TestSendLog_StreamConnected(t *testing.T) {
 		t.Errorf("SendLog (minimal): %v", err)
 	}
 }
+
+func TestSendSnapshot_PreservesHostRulesLabel(t *testing.T) {
+	store := NewMemoryStore()
+	reg := NewRegistryWithStore(slog.New(slog.NewTextHandler(io.Discard, nil)), store)
+	srv := &GRPCServer{Registry: reg}
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs := grpc.NewServer()
+	pb.RegisterControlPlaneServer(gs, srv)
+	go func() { _ = gs.Serve(lis) }()
+	defer gs.Stop()
+	defer lis.Close()
+
+	baseID := AgentIdentity{InstanceID: "label-test"}
+	c := NewGRPCClient(GRPCClientConfig{
+		Endpoint:    lis.Addr().String(),
+		Identity:    baseID,
+		DialTimeout: 2 * time.Second,
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = c.Run(ctx) }()
+
+	deadline := time.After(3 * time.Second)
+	for {
+		c.mu.Lock()
+		ready := c.stream != nil
+		c.mu.Unlock()
+		if ready {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("client never connected")
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+
+	hostRulesJSON := `{"default":"DROP","rules":[{"name":"ssh","protocol":"tcp","ports":[22]}]}`
+	snap := AgentSnapshot{
+		Agent: AgentIdentity{
+			InstanceID: "wrong-id",
+			Hostname:   "wrong-host",
+			Labels:     map[string]string{HostRulesLabelKey: hostRulesJSON},
+		},
+	}
+	if err := c.SendSnapshot(snap); err != nil {
+		t.Fatalf("SendSnapshot: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	persistedSnap, err := store.LatestSnapshot(context.Background(), "label-test")
+	if err != nil {
+		t.Fatalf("LatestSnapshot: %v", err)
+	}
+	if persistedSnap == nil {
+		t.Fatal("expected snapshot to be persisted")
+	}
+	if persistedSnap.Agent.Labels[HostRulesLabelKey] != hostRulesJSON {
+		t.Errorf("host_rules label not preserved: got %q, want %q", persistedSnap.Agent.Labels[HostRulesLabelKey], hostRulesJSON)
+	}
+	if persistedSnap.Agent.InstanceID != "label-test" {
+		t.Errorf("instance ID not from config: got %q, want %q", persistedSnap.Agent.InstanceID, "label-test")
+	}
+}
