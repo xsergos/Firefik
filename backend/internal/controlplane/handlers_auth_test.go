@@ -148,6 +148,65 @@ func TestHandleLogin_BadJSON(t *testing.T) {
 	}
 }
 
+type recordingAudit struct {
+	events []struct {
+		action string
+		meta   map[string]string
+	}
+}
+
+func (r *recordingAudit) Emit(action string, metadata map[string]string) {
+	r.events = append(r.events, struct {
+		action string
+		meta   map[string]string
+	}{action, metadata})
+}
+
+func TestHandleLogin_WrongMethod(t *testing.T) {
+	srv, _ := makeAuthEnabledServer(t, "alice", "x")
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/login", nil)
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+}
+
+func TestHandleLogin_EmitsAuditOnSuccess(t *testing.T) {
+	srv, _ := makeAuthEnabledServer(t, "alice", "s3cret")
+	audit := &recordingAudit{}
+	srv.Audit = audit
+	body, _ := json.Marshal(loginRequest{Username: "alice", Password: "s3cret"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/login", bytes.NewReader(body))
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(audit.events) != 1 || audit.events[0].action != "panel_login_succeeded" {
+		t.Errorf("audit events: %+v", audit.events)
+	}
+	if audit.events[0].meta["username"] != "alice" {
+		t.Errorf("username meta: %v", audit.events[0].meta)
+	}
+}
+
+func TestHandleLogin_EmitsAuditOnFailure(t *testing.T) {
+	srv, _ := makeAuthEnabledServer(t, "alice", "s3cret")
+	audit := &recordingAudit{}
+	srv.Audit = audit
+	body, _ := json.Marshal(loginRequest{Username: "alice", Password: "wrong"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/login", bytes.NewReader(body))
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if len(audit.events) != 1 || audit.events[0].action != "panel_login_failed" {
+		t.Errorf("audit events: %+v", audit.events)
+	}
+}
+
 func TestHandleLogin_NotAvailableIfDisabled(t *testing.T) {
 	srv, _ := newTestHTTPServer(t)
 	body, _ := json.Marshal(loginRequest{Username: "x", Password: "y"})
@@ -252,6 +311,9 @@ func TestRequireBearer_RejectsWhenNeither(t *testing.T) {
 }
 
 func TestClientIPFromRequest(t *testing.T) {
+	if got := clientIPFromRequest(nil); got != "" {
+		t.Fatalf("nil request: %q", got)
+	}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "10.0.0.1:1234"
 	if got := clientIPFromRequest(req); got != "10.0.0.1" {
@@ -260,5 +322,11 @@ func TestClientIPFromRequest(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "1.2.3.4, 5.6.7.8")
 	if got := clientIPFromRequest(req); got != "1.2.3.4" {
 		t.Fatalf("XFF chain: got %q", got)
+	}
+	req2 := httptest.NewRequest(http.MethodGet, "/", nil)
+	req2.RemoteAddr = "10.0.0.2:9999"
+	req2.Header.Set("X-Real-IP", "7.7.7.7")
+	if got := clientIPFromRequest(req2); got != "7.7.7.7" {
+		t.Fatalf("X-Real-IP precedence: got %q", got)
 	}
 }

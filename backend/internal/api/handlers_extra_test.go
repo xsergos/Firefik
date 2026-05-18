@@ -74,6 +74,29 @@ func TestHandleBulkContainersDisableInvalidID(t *testing.T) {
 	}
 }
 
+func TestHandleBulkContainersTooManyActions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{}
+	s := makeTestServer(t, cfg)
+	r := gin.New()
+	r.POST("/b", s.handleBulkContainers)
+	var b strings.Builder
+	b.WriteString(`{"actions":[`)
+	for i := 0; i < 101; i++ {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		b.WriteString(`{"id":"abcdef012345abcdef012345abcdef012345abcdef012345abcdef012345aabb","action":"apply"}`)
+	}
+	b.WriteString("]}")
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/b", strings.NewReader(b.String()))
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rec.Code)
+	}
+}
+
 func TestHandleGetTemplates(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{}
@@ -263,6 +286,47 @@ func TestHandleGetAuditHistoryWithLimit(t *testing.T) {
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Errorf("code=%d", rec.Code)
+	}
+}
+
+func TestHandleGetAuditHistoryWithSince(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{}
+	s := makeTestServer(t, cfg)
+	hb := audit.NewHistoryBuffer(10)
+	old := time.Now().Add(-2 * time.Hour)
+	recent := time.Now().Add(-1 * time.Minute)
+	hb.Write(audit.Event{Action: "apply", Timestamp: old})
+	hb.Write(audit.Event{Action: "disable", Timestamp: recent})
+	s.SetHistory(hb)
+	r := gin.New()
+	r.GET("/a", s.handleGetAuditHistory)
+	rec := httptest.NewRecorder()
+	since := time.Now().Add(-30 * time.Minute).UTC().Format(time.RFC3339)
+	req := httptest.NewRequest("GET", "/a?since="+since, nil)
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "disable") || strings.Contains(rec.Body.String(), "apply") {
+		t.Errorf("expected only recent events, got %s", rec.Body.String())
+	}
+}
+
+func TestHandleGetAuditHistoryInvalidSince(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{}
+	s := makeTestServer(t, cfg)
+	hb := audit.NewHistoryBuffer(2)
+	hb.Write(audit.Event{Action: "x"})
+	s.SetHistory(hb)
+	r := gin.New()
+	r.GET("/a", s.handleGetAuditHistory)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/a?since=not-a-timestamp", nil)
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rec.Code)
 	}
 }
 

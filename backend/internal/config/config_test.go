@@ -376,6 +376,24 @@ func TestGetEnvList(t *testing.T) {
 	}
 }
 
+func TestGetEnvListWithDefault(t *testing.T) {
+	os.Unsetenv("FIREFIK_LIST_DEFAULTKEY")
+	def := []string{"d1", "d2"}
+	if got := getEnvListWithDefault("FIREFIK_LIST_DEFAULTKEY", def); !reflect.DeepEqual(got, def) {
+		t.Errorf("unset: got %v, want %v", got, def)
+	}
+
+	t.Setenv("FIREFIK_LIST_DEFAULTKEY", "x,y")
+	if got := getEnvListWithDefault("FIREFIK_LIST_DEFAULTKEY", def); !reflect.DeepEqual(got, []string{"x", "y"}) {
+		t.Errorf("set: got %v", got)
+	}
+
+	t.Setenv("FIREFIK_LIST_DEFAULTKEY", "")
+	if got := getEnvListWithDefault("FIREFIK_LIST_DEFAULTKEY", def); got != nil {
+		t.Errorf("empty (explicit): got %v, want nil (env present but empty)", got)
+	}
+}
+
 func TestGetEnvIntList(t *testing.T) {
 	t.Setenv("FIREFIK_INTLIST_TESTKEY", "")
 	if got := getEnvIntList("FIREFIK_INTLIST_TESTKEY"); got != nil {

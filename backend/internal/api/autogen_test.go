@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -189,6 +190,61 @@ func TestHandleGetAutogenProposalsActiveObserver(t *testing.T) {
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Errorf("code=%d", rec.Code)
+	}
+}
+
+func TestHandleApproveAutogenSuccess_LabelsMode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{AutogenMinSamples: 1}
+	s := makeTestServer(t, cfg)
+	obs := autogen.NewObserver()
+	s.SetAutogen(obs)
+	store := obs.StoreHandle()
+	if err := store.UpsertProposal(context.Background(), autogen.Proposal{
+		ContainerID: "abc123",
+		Ports:       []uint16{80, 443},
+		Peers:       []string{"10.0.0.0/8"},
+		Confidence:  "high",
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	r := gin.New()
+	r.POST("/a/:id", s.handleApproveAutogen)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/a/abc123", strings.NewReader(`{"mode":"labels"}`))
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "firefik.enable") {
+		t.Errorf("snippet missing: %s", rec.Body.String())
+	}
+}
+
+func TestHandleApproveAutogenSuccess_PolicyMode_PrefixMatch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{AutogenMinSamples: 1}
+	s := makeTestServer(t, cfg)
+	obs := autogen.NewObserver()
+	s.SetAutogen(obs)
+	store := obs.StoreHandle()
+	if err := store.UpsertProposal(context.Background(), autogen.Proposal{
+		ContainerID: "abc123def456",
+		Ports:       []uint16{22},
+		Peers:       []string{"192.168.0.0/16"},
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	r := gin.New()
+	r.POST("/a/:id", s.handleApproveAutogen)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/a/abc123", strings.NewReader(`{"mode":"policy"}`))
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "policy") {
+		t.Errorf("policy snippet missing: %s", rec.Body.String())
 	}
 }
 

@@ -51,6 +51,84 @@ func fakeMMDBArchive(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
+func TestWriteRawMMDB_Success(t *testing.T) {
+	dst := filepath.Join(t.TempDir(), "raw.mmdb")
+	payload := []byte("raw bytes")
+	if err := writeRawMMDB(bytes.NewReader(payload), dst); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Errorf("mismatch: %q", got)
+	}
+}
+
+func TestWriteRawMMDB_BadPath(t *testing.T) {
+	if err := writeRawMMDB(bytes.NewReader([]byte("x")), filepath.Join(t.TempDir(), "no-such-subdir", "f.mmdb")); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestExtractMMDB_FindsAndWritesFile(t *testing.T) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	payload := []byte("fake mmdb bytes")
+	if err := tw.WriteHeader(&tar.Header{Name: "README.txt", Mode: 0o600, Size: int64(len("readme"))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write([]byte("readme")); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.WriteHeader(&tar.Header{Name: "geo/database.mmdb", Mode: 0o600, Size: int64(len(payload))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write(payload); err != nil {
+		t.Fatal(err)
+	}
+	tw.Close()
+	gz.Close()
+
+	dst := filepath.Join(t.TempDir(), "out.mmdb")
+	if err := extractMMDB(&buf, dst); err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Errorf("payload mismatch: %q", got)
+	}
+}
+
+func TestExtractMMDB_BadGzip(t *testing.T) {
+	if err := extractMMDB(strings.NewReader("not gzipped"), filepath.Join(t.TempDir(), "x")); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestExtractMMDB_NoMMDBInArchive(t *testing.T) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{Name: "only-txt.txt", Mode: 0o600, Size: 3}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write([]byte("xxx")); err != nil {
+		t.Fatal(err)
+	}
+	tw.Close()
+	gz.Close()
+	err := extractMMDB(&buf, filepath.Join(t.TempDir(), "x"))
+	if err == nil || !strings.Contains(err.Error(), "no .mmdb") {
+		t.Errorf("expected no .mmdb error, got %v", err)
+	}
+}
+
 func TestResolveDownloadURL(t *testing.T) {
 	cases := []struct {
 		name        string

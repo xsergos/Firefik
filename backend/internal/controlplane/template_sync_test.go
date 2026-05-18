@@ -18,6 +18,59 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
+func TestTemplateSyncer_saveToDisk_RemovesStaleAndPartialFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "stale.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "leftover.part"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "other.txt"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ts := &TemplateSyncer{cfg: TemplateSyncerConfig{CacheDir: dir}}
+	ts.saveToDisk(map[string]PolicyTemplate{
+		"kept": {Name: "kept", Body: "default: allow"},
+	})
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]struct{}{}
+	for _, e := range entries {
+		names[e.Name()] = struct{}{}
+	}
+	if _, ok := names["kept.json"]; !ok {
+		t.Errorf("kept.json missing: %+v", names)
+	}
+	if _, ok := names["stale.json"]; ok {
+		t.Errorf("stale.json should be removed")
+	}
+	if _, ok := names["leftover.part"]; ok {
+		t.Errorf(".part should be removed")
+	}
+	if _, ok := names["other.txt"]; !ok {
+		t.Errorf("non-json/.part files should be untouched")
+	}
+}
+
+func TestTemplateSyncer_saveToDisk_NoCacheDir(t *testing.T) {
+	ts := &TemplateSyncer{cfg: TemplateSyncerConfig{CacheDir: "/this/path/should/not/exist/xyz123"}}
+	ts.saveToDisk(map[string]PolicyTemplate{"x": {Name: "x"}})
+}
+
+func TestTemplateSyncer_warn(t *testing.T) {
+	ts := &TemplateSyncer{cfg: TemplateSyncerConfig{}}
+	ts.warn("nil-logger", io.EOF)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	ts2 := &TemplateSyncer{cfg: TemplateSyncerConfig{Logger: logger, Endpoint: "p"}}
+	ts2.warn("real", io.EOF)
+	ts2.warn("canceled-ignored", context.Canceled)
+}
+
 func newTestSyncerServer(t *testing.T, store Store) (*grpc.Server, string) {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")

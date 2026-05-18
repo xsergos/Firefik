@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"log/slog"
 	"math/big"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -210,6 +211,24 @@ func TestHandleReadyError(t *testing.T) {
 	r.ServeHTTP(rec, req)
 	if rec.Code != 200 {
 		t.Errorf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleReady_DockerFails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	cfg := &config.Config{}
+	reader := errDocker{}
+	engine := rules.NewEngine(stubBackend{}, reader, cfg, logger)
+	hub := logstream.NewHub(logger)
+	s := NewServer(cfg, reader, engine, hub, logger, NewTrafficStore())
+	r := gin.New()
+	r.GET("/ready", s.handleReady)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/ready", nil)
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

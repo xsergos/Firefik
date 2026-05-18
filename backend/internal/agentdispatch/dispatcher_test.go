@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"firefik/internal/api"
 	"firefik/internal/audit"
@@ -271,6 +272,156 @@ func TestAutogenPolicySnippet(t *testing.T) {
 	got := autogenPolicySnippet(p)
 	if !strings.Contains(got, "policy \"abc\"") || !strings.Contains(got, "allow tcp dport 80") || !strings.Contains(got, "10.0.0.0/8") {
 		t.Errorf("snippet: %s", got)
+	}
+}
+
+func TestDispatcher_AutogenApprove_Success_LabelsMode(t *testing.T) {
+	d, _, obs := newTestDispatcher(t)
+	store := obs.StoreHandle()
+	if err := store.UpsertProposal(context.Background(), autogen.Proposal{
+		ContainerID: "c1",
+		Ports:       []uint16{80, 443},
+		Peers:       []string{"10.0.0.0/8"},
+		Confidence:  "high",
+		ObservedFor: "1h",
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	d.deps.Audit = audit.New(slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	ack := d.Dispatch(context.Background(), controlplane.Command{
+		ID: "x", Kind: controlplane.CommandAutogenApprove, ContainerID: "c1",
+		Payload: map[string]any{"mode": "labels"},
+	})
+	if !ack.Success {
+		t.Fatalf("expected success: %q", ack.Error)
+	}
+	if ack.ResultPayload["mode"] != "labels" {
+		t.Errorf("mode: %v", ack.ResultPayload["mode"])
+	}
+	snippet, _ := ack.ResultPayload["snippet"].(string)
+	if !strings.Contains(snippet, "firefik.enable") {
+		t.Errorf("snippet: %s", snippet)
+	}
+}
+
+func TestDispatcher_AutogenApprove_Success_PolicyMode(t *testing.T) {
+	d, _, obs := newTestDispatcher(t)
+	store := obs.StoreHandle()
+	if err := store.UpsertProposal(context.Background(), autogen.Proposal{
+		ContainerID: "c1",
+		Ports:       []uint16{22},
+		Peers:       []string{"10.0.0.0/8"},
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	ack := d.Dispatch(context.Background(), controlplane.Command{
+		ID: "x", Kind: controlplane.CommandAutogenApprove, ContainerID: "c1",
+		Payload: map[string]any{"mode": "policy"},
+	})
+	if !ack.Success {
+		t.Fatalf("expected success: %q", ack.Error)
+	}
+	snippet, _ := ack.ResultPayload["snippet"].(string)
+	if !strings.Contains(snippet, "policy \"c1\"") {
+		t.Errorf("policy-mode snippet: %s", snippet)
+	}
+}
+
+func TestDispatcher_AutogenApprove_DefaultMode_IsLabels(t *testing.T) {
+	d, _, obs := newTestDispatcher(t)
+	store := obs.StoreHandle()
+	if err := store.UpsertProposal(context.Background(), autogen.Proposal{
+		ContainerID: "c1",
+		Ports:       []uint16{443},
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	ack := d.Dispatch(context.Background(), controlplane.Command{
+		ID: "x", Kind: controlplane.CommandAutogenApprove, ContainerID: "c1",
+		Payload: map[string]any{},
+	})
+	if !ack.Success {
+		t.Fatalf("expected success: %q", ack.Error)
+	}
+	if ack.ResultPayload["mode"] != "labels" {
+		t.Errorf("default mode should be labels, got %v", ack.ResultPayload["mode"])
+	}
+}
+
+func TestDispatcher_AutogenReject_Success(t *testing.T) {
+	d, _, obs := newTestDispatcher(t)
+	store := obs.StoreHandle()
+	if err := store.UpsertProposal(context.Background(), autogen.Proposal{
+		ContainerID: "c1",
+		Ports:       []uint16{80},
+		Peers:       []string{"1.2.3.4"},
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	d.deps.Audit = audit.New(slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	ack := d.Dispatch(context.Background(), controlplane.Command{
+		ID: "x", Kind: controlplane.CommandAutogenReject, ContainerID: "c1",
+		Payload: map[string]any{"reason": "noise"},
+	})
+	if !ack.Success {
+		t.Fatalf("expected success: %q", ack.Error)
+	}
+	if ack.ResultPayload["reason"] != "noise" {
+		t.Errorf("reason: %v", ack.ResultPayload["reason"])
+	}
+}
+
+func TestDispatcher_AutogenApprove_PrefixMatchOnContainerID(t *testing.T) {
+	d, _, obs := newTestDispatcher(t)
+	store := obs.StoreHandle()
+	if err := store.UpsertProposal(context.Background(), autogen.Proposal{
+		ContainerID: "abcd1234efgh",
+		Ports:       []uint16{80},
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	ack := d.Dispatch(context.Background(), controlplane.Command{
+		ID: "x", Kind: controlplane.CommandAutogenApprove, ContainerID: "abcd",
+		Payload: map[string]any{"mode": "labels"},
+	})
+	if !ack.Success {
+		t.Fatalf("prefix match expected success: %q", ack.Error)
+	}
+}
+
+func TestProposalSource_RealProposals(t *testing.T) {
+	obs := autogen.NewObserver()
+	now := time.Now().Add(-time.Hour)
+	for i := 0; i < 5; i++ {
+		obs.Record(autogen.Flow{ContainerID: "c1", Protocol: "tcp", Port: 80, PeerIP: "10.0.0.1", At: now})
+	}
+	cfg := &config.Config{AutogenMinSamples: 1}
+	a := &ProposalSource{Observer: obs, Config: cfg}
+	got := a.Proposals(context.Background())
+	if len(got) == 0 {
+		t.Fatalf("expected at least 1 proposal, got %d", len(got))
+	}
+	if got[0].ContainerID != "c1" {
+		t.Errorf("container_id: %q", got[0].ContainerID)
+	}
+	found := false
+	for _, p := range got[0].Ports {
+		if p == 80 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("port 80 missing: %+v", got[0].Ports)
+	}
+}
+
+func TestProposalSource_NilConfig(t *testing.T) {
+	obs := autogen.NewObserver()
+	a := &ProposalSource{Observer: obs}
+	if got := a.Proposals(context.Background()); got == nil {
+		t.Error("nil-config + non-nil observer should return non-nil slice")
 	}
 }
 

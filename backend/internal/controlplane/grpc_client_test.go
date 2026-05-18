@@ -97,6 +97,40 @@ func TestToPBAck(t *testing.T) {
 	}
 }
 
+func TestToPBAck_WithResultPayload(t *testing.T) {
+	in := CommandAck{
+		ID:            "id-1",
+		AgentID:       "agent-1",
+		Success:       true,
+		CompletedAt:   time.Now(),
+		ResultPayload: map[string]any{"mode": "labels", "ports": []any{80.0, 443.0}},
+	}
+	out := toPBAck(in)
+	if out.ResultPayload == nil {
+		t.Fatal("ResultPayload should be set")
+	}
+	if got := out.ResultPayload.Fields["mode"].GetStringValue(); got != "labels" {
+		t.Errorf("mode=%q", got)
+	}
+}
+
+func TestToPBAck_InvalidPayloadDropped(t *testing.T) {
+	in := CommandAck{
+		ID:            "id-1",
+		Success:       false,
+		Error:         "boom",
+		CompletedAt:   time.Now(),
+		ResultPayload: map[string]any{"bad": make(chan int)},
+	}
+	out := toPBAck(in)
+	if out.ResultPayload != nil {
+		t.Errorf("invalid payload should be dropped, got %+v", out.ResultPayload)
+	}
+	if out.Error != "boom" {
+		t.Errorf("error: %q", out.Error)
+	}
+}
+
 func TestToNativeCommand(t *testing.T) {
 	in := &pb.ServerCommand{
 		Id:          "cmd1",
@@ -157,6 +191,26 @@ func TestSendAuditStreamDown(t *testing.T) {
 func TestSendHeartbeatStreamDown(t *testing.T) {
 	c := NewGRPCClient(GRPCClientConfig{})
 	if err := c.SendHeartbeat(); !errors.Is(err, ErrStreamDown) {
+		t.Errorf("got %v, want ErrStreamDown", err)
+	}
+}
+
+func TestSendAutogenProposals_EmptyIsNoop(t *testing.T) {
+	c := NewGRPCClient(GRPCClientConfig{})
+	if err := c.SendAutogenProposals(nil); err != nil {
+		t.Errorf("nil items: %v", err)
+	}
+	if err := c.SendAutogenProposals([]AutogenProposal{}); err != nil {
+		t.Errorf("empty items: %v", err)
+	}
+}
+
+func TestSendAutogenProposals_StreamDown(t *testing.T) {
+	c := NewGRPCClient(GRPCClientConfig{})
+	err := c.SendAutogenProposals([]AutogenProposal{
+		{ContainerID: "c1", Ports: []uint32{80}, Peers: []string{"10.0.0.0/8"}},
+	})
+	if !errors.Is(err, ErrStreamDown) {
 		t.Errorf("got %v, want ErrStreamDown", err)
 	}
 }

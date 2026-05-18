@@ -90,6 +90,42 @@ func TestAgentTokens_HTTP_List_HidesPlaintext(t *testing.T) {
 	}
 }
 
+func TestAgentTokens_HTTP_List_IncludeRevoked(t *testing.T) {
+	srv, store := newTestHTTPServer(t)
+	srv.OperatorToken = "op"
+	tok1, err := store.CreateAgentToken(context.Background(), "live", "", "op")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok2, err := store.CreateAgentToken(context.Background(), "dead", "", "op")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RevokeAgentToken(context.Background(), tok2.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/agent-tokens", nil)
+	req.Header.Set("Authorization", "Bearer op")
+	srv.Handler().ServeHTTP(rec, req)
+	var noRevoked []AgentToken
+	_ = json.Unmarshal(rec.Body.Bytes(), &noRevoked)
+	if len(noRevoked) != 1 || noRevoked[0].ID != tok1.ID {
+		t.Errorf("default list should hide revoked: %+v", noRevoked)
+	}
+
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodGet, "/v1/agent-tokens?include_revoked=1", nil)
+	req2.Header.Set("Authorization", "Bearer op")
+	srv.Handler().ServeHTTP(rec2, req2)
+	var withRevoked []AgentToken
+	_ = json.Unmarshal(rec2.Body.Bytes(), &withRevoked)
+	if len(withRevoked) != 2 {
+		t.Errorf("with include_revoked=1 should return 2, got %d", len(withRevoked))
+	}
+}
+
 func TestAgentTokens_HTTP_Revoke(t *testing.T) {
 	srv, store := newTestHTTPServer(t)
 	srv.OperatorToken = "op"

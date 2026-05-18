@@ -1,12 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createAgentToken,
   createEnrollmentToken,
   fetchAgent,
   fetchAgents,
   fetchAgentSnapshot,
   fetchAgentStats,
+  fetchAgentTokens,
   fetchFleetStats,
+  login,
+  logout,
+  revokeAgentToken,
   sendAgentCommand,
+  whoami,
 } from "@/lib/fleetApi";
 
 const originalFetch = globalThis.fetch;
@@ -192,6 +198,139 @@ describe("fleetApi", () => {
     await expect(
       sendAgentCommand("h1", "apply", "c1"),
     ).rejects.toThrow(/nope/);
+  });
+
+  it("getJSON falls back to status on empty error body", async () => {
+    installFetch(async () => new Response("", { status: 500 }));
+    await expect(fetchAgents()).rejects.toThrow(/500/);
+  });
+
+  it("fetchAgentTokens returns parsed list", async () => {
+    let capturedUrl = "";
+    installFetch(async (input) => {
+      capturedUrl = input.toString();
+      return mockJSON([
+        {
+          id: "t1",
+          name: "ci",
+          issued_by: "admin",
+          issued_at: "2026-04-01T00:00:00Z",
+        },
+      ]);
+    });
+    const out = await fetchAgentTokens();
+    expect(out).toHaveLength(1);
+    expect(out[0]?.id).toBe("t1");
+    expect(out[0]?.description).toBe("");
+    expect(out[0]?.last_used_ip).toBe("");
+    expect(capturedUrl).toBe("/api/agent-tokens");
+  });
+
+  it("fetchAgentTokens appends include_revoked when requested", async () => {
+    let capturedUrl = "";
+    installFetch(async (input) => {
+      capturedUrl = input.toString();
+      return mockJSON(null);
+    });
+    const out = await fetchAgentTokens(true);
+    expect(out).toEqual([]);
+    expect(capturedUrl).toBe("/api/agent-tokens?include_revoked=1");
+  });
+
+  it("createAgentToken posts name + description and parses issued token", async () => {
+    let captured: { url: string; init?: RequestInit } | null = null;
+    installFetch(async (input, init) => {
+      captured = { url: input.toString(), init };
+      return mockJSON({
+        id: "t2",
+        name: "deploy",
+        description: "prod deploy",
+        issued_by: "admin",
+        issued_at: "2026-04-01T00:00:00Z",
+        token: "secret-token",
+      }, { status: 201 });
+    });
+    const out = await createAgentToken("deploy", "prod deploy");
+    expect(out.token).toBe("secret-token");
+    expect(captured!.url).toBe("/api/agent-tokens");
+    expect(JSON.parse(captured!.init?.body as string)).toEqual({
+      name: "deploy",
+      description: "prod deploy",
+    });
+  });
+
+  it("revokeAgentToken sends DELETE", async () => {
+    let captured: { url: string; init?: RequestInit } | null = null;
+    installFetch(async (input, init) => {
+      captured = { url: input.toString(), init };
+      return new Response(null, { status: 204 });
+    });
+    await expect(revokeAgentToken("t/1")).resolves.toBeUndefined();
+    expect(captured!.url).toBe("/api/agent-tokens/t%2F1");
+    expect(captured!.init?.method).toBe("DELETE");
+  });
+
+  it("revokeAgentToken throws with body text on error", async () => {
+    installFetch(async () => new Response("denied", { status: 403 }));
+    await expect(revokeAgentToken("t1")).rejects.toThrow(/denied/);
+  });
+
+  it("revokeAgentToken falls back to status when body empty", async () => {
+    installFetch(async () => new Response("", { status: 503 }));
+    await expect(revokeAgentToken("t1")).rejects.toThrow(/503/);
+  });
+
+  it("whoami parses session response", async () => {
+    installFetch(async () =>
+      mockJSON({ username: "admin", auth_kind: "session" }),
+    );
+    const out = await whoami();
+    expect(out?.username).toBe("admin");
+    expect(out?.auth_kind).toBe("session");
+  });
+
+  it("whoami returns null on 401", async () => {
+    installFetch(async () => new Response("", { status: 401 }));
+    const out = await whoami();
+    expect(out).toBeNull();
+  });
+
+  it("whoami returns null on 404", async () => {
+    installFetch(async () => new Response("", { status: 404 }));
+    const out = await whoami();
+    expect(out).toBeNull();
+  });
+
+  it("whoami throws on server error", async () => {
+    installFetch(async () => new Response("server down", { status: 500 }));
+    await expect(whoami()).rejects.toThrow(/server down/);
+  });
+
+  it("login posts credentials", async () => {
+    let captured: { url: string; init?: RequestInit } | null = null;
+    installFetch(async (input, init) => {
+      captured = { url: input.toString(), init };
+      return mockJSON({ username: "admin", expires_at: "2026-04-02T00:00:00Z" });
+    });
+    const out = await login("admin", "hunter2");
+    expect(out.username).toBe("admin");
+    expect(captured!.url).toBe("/api/login");
+    expect(JSON.parse(captured!.init?.body as string)).toEqual({
+      username: "admin",
+      password: "hunter2",
+    });
+  });
+
+  it("logout resolves on 200 / 204", async () => {
+    installFetch(async () => new Response(null, { status: 200 }));
+    await expect(logout()).resolves.toBeUndefined();
+    installFetch(async () => new Response(null, { status: 204 }));
+    await expect(logout()).resolves.toBeUndefined();
+  });
+
+  it("logout throws on error status", async () => {
+    installFetch(async () => new Response("boom", { status: 500 }));
+    await expect(logout()).rejects.toThrow(/boom/);
   });
 
   it("createEnrollmentToken posts and parses", async () => {

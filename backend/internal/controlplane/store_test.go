@@ -2,6 +2,8 @@ package controlplane
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"path/filepath"
 	"testing"
 	"time"
@@ -191,6 +193,40 @@ func TestSQLiteStoreHydratesRegistry(t *testing.T) {
 	agents := reg.Agents()
 	if len(agents) != 1 || agents[0].Identity.InstanceID != "hydrate-1" {
 		t.Fatalf("unexpected: %+v", agents)
+	}
+}
+
+func TestNewSQLiteStore_EmptyPathDefaultsInMemory(t *testing.T) {
+	store, err := NewSQLiteStore(context.Background(), "", nil)
+	if err != nil {
+		t.Fatalf("empty path should default to :memory: → got %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Errorf("close: %v", err)
+	}
+}
+
+func TestNewSQLiteStore_BadPath(t *testing.T) {
+	_, err := NewSQLiteStore(context.Background(), filepath.Join(t.TempDir(), "no-such-dir", "x.db"), nil)
+	if err == nil {
+		t.Fatal("expected error for missing parent dir")
+	}
+}
+
+func TestRegistry_HydrateNilStoreNoop(t *testing.T) {
+	r := &Registry{agents: map[string]*agentEntry{}}
+	r.hydrate(context.Background())
+}
+
+func TestSQLiteStoreHydratesRegistry_WithLogger(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	_ = store.UpsertAgent(ctx, AgentIdentity{InstanceID: "hydrated-with-log", Hostname: "h2"})
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	reg := NewRegistryWithStore(logger, store)
+	if len(reg.Agents()) != 1 {
+		t.Fatalf("expected 1 agent hydrated, got %d", len(reg.Agents()))
 	}
 }
 
