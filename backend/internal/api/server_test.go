@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
@@ -12,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -541,6 +543,130 @@ func TestValidateMetricsListenerFallbackAPIToken(t *testing.T) {
 	s := makeTestServer(t, cfg)
 	if err := s.validateSecurityConfig(); err != nil {
 		t.Errorf("metrics listener should accept APIToken fallback: %v", err)
+	}
+}
+
+func TestMatchPrivateRange(t *testing.T) {
+	cases := []struct {
+		in    string
+		want  string
+		match bool
+	}{
+		{"10.0.0.5:9180", "10.0.0.0/8", true},
+		{"172.18.0.1:9180", "172.16.0.0/12", true},
+		{"172.31.255.255:9180", "172.16.0.0/12", true},
+		{"172.32.0.1:9180", "", false},
+		{"192.168.1.1:9180", "192.168.0.0/16", true},
+		{"[fd00::1]:9180", "fc00::/7", true},
+		{"[fc00::5]:9180", "fc00::/7", true},
+		{"[2001:db8::1]:9180", "", false},
+		{"203.0.113.5:9180", "", false},
+		{"0.0.0.0:9180", "", false},
+		{"127.0.0.1:9180", "", false},
+		{"example.com:9180", "", false},
+	}
+	for _, c := range cases {
+		got, ok := matchPrivateRange(c.in)
+		if ok != c.match || got != c.want {
+			t.Errorf("matchPrivateRange(%q)=(%q,%v) want (%q,%v)", c.in, got, ok, c.want, c.match)
+		}
+	}
+}
+
+func makeTestServerCapturing(t *testing.T, cfg *config.Config) (*Server, *bytes.Buffer) {
+	t.Helper()
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	reader := stubDocker{}
+	engine := rules.NewEngine(stubBackend{}, reader, cfg, logger)
+	hub := logstream.NewHub(logger)
+	traffic := NewTrafficStore()
+	return NewServer(cfg, reader, engine, hub, logger, traffic), &buf
+}
+
+func TestValidateMetricsListenerAllowPrivateRFC1918OK(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:          "unix:///tmp/api.sock",
+		MetricsToken:        "scrape-tok",
+		MetricsListenAddr:   "tcp://172.18.0.1:9180",
+		MetricsAllowPrivate: true,
+	}
+	s, buf := makeTestServerCapturing(t, cfg)
+	if err := s.validateSecurityConfig(); err != nil {
+		t.Fatalf("RFC1918 metrics listener with allow-private should pass: %v", err)
+	}
+	log := buf.String()
+	if !strings.Contains(log, "172.18.0.1:9180") {
+		t.Errorf("warning log missing listen address: %q", log)
+	}
+	if !strings.Contains(log, "172.16.0.0/12") {
+		t.Errorf("warning log missing matched private range: %q", log)
+	}
+}
+
+func TestValidateMetricsListenerRFC1918WithoutFlagRefuses(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:        "unix:///tmp/api.sock",
+		MetricsToken:      "scrape-tok",
+		MetricsListenAddr: "tcp://172.18.0.1:9180",
+	}
+	s := makeTestServer(t, cfg)
+	if err := s.validateSecurityConfig(); err == nil {
+		t.Errorf("expected error: RFC1918 metrics listener without allow-private and without TLS")
+	}
+}
+
+func TestValidateMetricsListenerAllowPrivatePublicRefuses(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:          "unix:///tmp/api.sock",
+		MetricsToken:        "scrape-tok",
+		MetricsListenAddr:   "tcp://203.0.113.5:9180",
+		MetricsAllowPrivate: true,
+	}
+	s := makeTestServer(t, cfg)
+	if err := s.validateSecurityConfig(); err == nil {
+		t.Errorf("expected error: public address with allow-private must still require TLS")
+	}
+}
+
+func TestValidateMetricsListenerAllowPrivateMissingTokenRefuses(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:          "unix:///tmp/api.sock",
+		MetricsListenAddr:   "tcp://10.0.0.5:9180",
+		MetricsAllowPrivate: true,
+	}
+	s := makeTestServer(t, cfg)
+	if err := s.validateSecurityConfig(); err == nil {
+		t.Errorf("expected error: token requirement unchanged when allow-private is set")
+	}
+}
+
+func TestValidateMetricsListenerAllowPrivateIPv6ULAOK(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:          "unix:///tmp/api.sock",
+		MetricsToken:        "scrape-tok",
+		MetricsListenAddr:   "tcp://[fd00::1]:9180",
+		MetricsAllowPrivate: true,
+	}
+	s, buf := makeTestServerCapturing(t, cfg)
+	if err := s.validateSecurityConfig(); err != nil {
+		t.Fatalf("IPv6 ULA metrics listener with allow-private should pass: %v", err)
+	}
+	if !strings.Contains(buf.String(), "fc00::/7") {
+		t.Errorf("warning log missing fc00::/7 range: %q", buf.String())
+	}
+}
+
+func TestValidateMetricsListenerAllowPrivateIPv6GUARefuses(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:          "unix:///tmp/api.sock",
+		MetricsToken:        "scrape-tok",
+		MetricsListenAddr:   "tcp://[2001:db8::1]:9180",
+		MetricsAllowPrivate: true,
+	}
+	s := makeTestServer(t, cfg)
+	if err := s.validateSecurityConfig(); err == nil {
+		t.Errorf("expected error: IPv6 GUA must still require TLS even with allow-private")
 	}
 }
 

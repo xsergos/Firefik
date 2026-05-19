@@ -75,6 +75,23 @@ TCP listeners also require a metrics token (either dedicated or
 API-token fallback). Unix-socket metrics listeners inherit
 `FIREFIK_SOCKET_MODE` / `FIREFIK_SOCKET_GROUP` from the API socket.
 
+For container-based deployments where the agent runs on `--network
+host` and exposes `/metrics` on a docker-bridge gateway IP (e.g.
+`172.18.0.1`) so that scrapers in a bridge network can reach it,
+set `FIREFIK_METRICS_ALLOW_PRIVATE=true` to skip the TLS requirement
+for RFC1918 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) and
+IPv6 ULA (`fc00::/7`) addresses. The bearer token requirement is
+unchanged, and public (non-private) addresses still require TLS.
+This is a deployment-time trust statement that the host's private
+network is not exposed to untrusted parties — a warning log line
+naming the address and matched range is emitted on startup. Example:
+
+```
+FIREFIK_METRICS_LISTEN=tcp://172.18.0.1:9180
+FIREFIK_METRICS_ALLOW_PRIVATE=true
+FIREFIK_METRICS_TOKEN_FILE=/run/secrets/firefik-metrics-token
+```
+
 Key metrics:
 
 - `firefik_engine_reconcile_total`

@@ -40,6 +40,7 @@ Columns:
 | `FIREFIK_METRICS_LISTEN` | — | string | agent | | Dedicated `/metrics` listener (e.g. `tcp://127.0.0.1:9180` or `unix:///run/firefik/metrics.sock`). Empty = metrics served on main API listener. When set, `/metrics` is removed from the API listener (returns 404 there). |
 | `FIREFIK_METRICS_TLS_CERT` | — | path | agent | | TLS cert for the dedicated metrics listener. Required (with key) when the listener is non-loopback TCP. |
 | `FIREFIK_METRICS_TLS_KEY` | — | path | agent | 🔒 | TLS key for the dedicated metrics listener. |
+| `FIREFIK_METRICS_ALLOW_PRIVATE` | `false` | bool | agent | | Allow the metrics listener to bind to a non-loopback RFC1918 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) or IPv6 ULA (`fc00::/7`) address without TLS. Bearer token still required. Public addresses still require TLS. Deployment-time trust statement about the host's private network — emits a warning log on startup naming the address and matched range. |
 | `FIREFIK_REQUEST_TIMEOUT_MS` | `30000` | int | agent | | HTTP request timeout (ms). |
 | `FIREFIK_WS_MAX_SUBSCRIBERS` | `20` | int | agent | | Max concurrent `/ws/logs` subscribers. |
 

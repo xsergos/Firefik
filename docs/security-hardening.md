@@ -96,6 +96,18 @@ to "good to have".
   `FIREFIK_METRICS_TLS_KEY` (the backend refuses to start otherwise).
   TCP metrics listener also requires `FIREFIK_METRICS_TOKEN` (or
   API-token fallback).
+- **Escape hatch (private networks only).** For host-networked
+  agents that need to publish `/metrics` to scrapers in a bridge
+  network via an RFC1918 docker-bridge gateway (e.g. `172.18.0.1`)
+  where issuing and rotating self-signed TLS per host is undesirable,
+  set `FIREFIK_METRICS_ALLOW_PRIVATE=true`. This relaxes the TLS
+  requirement **only** for addresses in `10.0.0.0/8`,
+  `172.16.0.0/12`, `192.168.0.0/16`, or IPv6 ULA `fc00::/7`. Public
+  addresses still require TLS; the bearer-token requirement is
+  unchanged. The relaxation is a deployment-time trust statement
+  about the host's private network and is logged at warning level
+  on startup with the address and matched range. Do not set this
+  on a host whose private network is reachable from untrusted parties.
 
 ### 2.3 Control-plane bootstrap token
 

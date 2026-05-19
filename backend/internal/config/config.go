@@ -24,61 +24,62 @@ func SafePath(p string) string {
 }
 
 type Config struct {
-	ListenAddr         string
-	SocketMode         os.FileMode
-	SocketGroup        string
-	LogLevel           string
-	ChainName          string
-	ParentChain        string
-	DefaultPolicy      string
-	AutoAllowlist      bool
-	ConfigFile         string
-	EnableIPv6         bool
-	Backend            string
-	UseGeoIPDB         bool
-	GeoIPDBPath        string
-	GeoIPAutoUpdate    bool
-	GeoIPUpdateCron    string
-	GeoIPLicenseKey    string
-	GeoIPSource        string
-	GeoIPDownloadURL   string
-	Version            string
-	APIToken           string
-	MetricsToken       string
-	AllowedOrigins     []string
-	AllowedUIDs        []int
-	ClientCAFile       string
-	MaxBodyBytes       int64
-	RateLimitRPS       float64
-	RateLimitBurst     int
-	RequestTimeoutMS   int
-	AuditSinkType      string
-	AuditSinkPath      string
-	AuditSinkEndpoint  string
-	AuditRotation      AuditRotationConfig
-	WebhookURL         string
-	WebhookEvents      []string
-	WebhookSecret      string
-	WebhookTimeoutMS   int
-	ChainSuffix        string
-	CleanupOldSuffixes []string
-	EffectiveChain     string
-	DriftCheckInterval int
-	StatefulAccept     bool
-	APITokenFile       string
-	WSMaxSubscribers   int
-	MetricsRateRPS     float64
-	MetricsRateBurst   int
-	MetricsListenAddr  string
-	MetricsTLSCert     string
-	MetricsTLSKey      string
-	TemplatesFile      string
-	PoliciesDir        string
-	PoliciesReadOnly   bool
-	AutogenMode        string
-	AutogenMinSamples  int
-	AutogenDBPath      string
-	ScheduleInterval   int
+	ListenAddr          string
+	SocketMode          os.FileMode
+	SocketGroup         string
+	LogLevel            string
+	ChainName           string
+	ParentChain         string
+	DefaultPolicy       string
+	AutoAllowlist       bool
+	ConfigFile          string
+	EnableIPv6          bool
+	Backend             string
+	UseGeoIPDB          bool
+	GeoIPDBPath         string
+	GeoIPAutoUpdate     bool
+	GeoIPUpdateCron     string
+	GeoIPLicenseKey     string
+	GeoIPSource         string
+	GeoIPDownloadURL    string
+	Version             string
+	APIToken            string
+	MetricsToken        string
+	AllowedOrigins      []string
+	AllowedUIDs         []int
+	ClientCAFile        string
+	MaxBodyBytes        int64
+	RateLimitRPS        float64
+	RateLimitBurst      int
+	RequestTimeoutMS    int
+	AuditSinkType       string
+	AuditSinkPath       string
+	AuditSinkEndpoint   string
+	AuditRotation       AuditRotationConfig
+	WebhookURL          string
+	WebhookEvents       []string
+	WebhookSecret       string
+	WebhookTimeoutMS    int
+	ChainSuffix         string
+	CleanupOldSuffixes  []string
+	EffectiveChain      string
+	DriftCheckInterval  int
+	StatefulAccept      bool
+	APITokenFile        string
+	WSMaxSubscribers    int
+	MetricsRateRPS      float64
+	MetricsRateBurst    int
+	MetricsListenAddr   string
+	MetricsTLSCert      string
+	MetricsTLSKey       string
+	MetricsAllowPrivate bool
+	TemplatesFile       string
+	PoliciesDir         string
+	PoliciesReadOnly    bool
+	AutogenMode         string
+	AutogenMinSamples   int
+	AutogenDBPath       string
+	ScheduleInterval    int
 
 	ControlPlaneGRPC       string
 	ControlPlaneHTTP       string
@@ -146,26 +147,27 @@ func Load() *Config {
 			"FIREFIK_WEBHOOK_EVENTS",
 			[]string{"rule_applied", "rule_apply_failed", "policy_changed", "proposal_approved", "cert_expiring"},
 		),
-		WebhookSecret:      getEnvWithFile("FIREFIK_WEBHOOK_SECRET", "FIREFIK_WEBHOOK_SECRET_FILE", ""),
-		WebhookTimeoutMS:   int(getEnvInt64("FIREFIK_WEBHOOK_TIMEOUT_MS", 5000)),
-		ChainSuffix:        getEnv("FIREFIK_CHAIN_SUFFIX", ""),
-		CleanupOldSuffixes: getEnvList("FIREFIK_CLEANUP_OLD_SUFFIXES"),
-		DriftCheckInterval: int(getEnvInt64("FIREFIK_DRIFT_CHECK_INTERVAL", 300)),
-		StatefulAccept:     getEnvBool("FIREFIK_STATEFUL_ACCEPT", true),
-		APITokenFile:       SafePath(os.Getenv("FIREFIK_API_TOKEN_FILE")),
-		WSMaxSubscribers:   int(getEnvInt64("FIREFIK_WS_MAX_SUBSCRIBERS", 20)),
-		MetricsRateRPS:     getEnvFloat("FIREFIK_METRICS_RATE_RPS", 1.0),
-		MetricsRateBurst:   int(getEnvInt64("FIREFIK_METRICS_RATE_BURST", 5)),
-		MetricsListenAddr:  getEnv("FIREFIK_METRICS_LISTEN", ""),
-		MetricsTLSCert:     SafePath(getEnv("FIREFIK_METRICS_TLS_CERT", "")),
-		MetricsTLSKey:      SafePath(getEnv("FIREFIK_METRICS_TLS_KEY", "")),
-		TemplatesFile:      SafePath(os.Getenv("FIREFIK_TEMPLATES_FILE")),
-		PoliciesDir:        SafePath(os.Getenv("FIREFIK_POLICIES_DIR")),
-		PoliciesReadOnly:   getEnvBool("FIREFIK_POLICIES_READONLY", false),
-		AutogenMode:        strings.ToLower(getEnv("FIREFIK_AUTOGEN_MODE", "off")),
-		AutogenMinSamples:  int(getEnvInt64("FIREFIK_AUTOGEN_MIN_SAMPLES", 10)),
-		AutogenDBPath:      SafePath(getEnv("FIREFIK_AUTOGEN_DB_PATH", "")),
-		ScheduleInterval:   int(getEnvInt64("FIREFIK_SCHEDULE_INTERVAL", 60)),
+		WebhookSecret:       getEnvWithFile("FIREFIK_WEBHOOK_SECRET", "FIREFIK_WEBHOOK_SECRET_FILE", ""),
+		WebhookTimeoutMS:    int(getEnvInt64("FIREFIK_WEBHOOK_TIMEOUT_MS", 5000)),
+		ChainSuffix:         getEnv("FIREFIK_CHAIN_SUFFIX", ""),
+		CleanupOldSuffixes:  getEnvList("FIREFIK_CLEANUP_OLD_SUFFIXES"),
+		DriftCheckInterval:  int(getEnvInt64("FIREFIK_DRIFT_CHECK_INTERVAL", 300)),
+		StatefulAccept:      getEnvBool("FIREFIK_STATEFUL_ACCEPT", true),
+		APITokenFile:        SafePath(os.Getenv("FIREFIK_API_TOKEN_FILE")),
+		WSMaxSubscribers:    int(getEnvInt64("FIREFIK_WS_MAX_SUBSCRIBERS", 20)),
+		MetricsRateRPS:      getEnvFloat("FIREFIK_METRICS_RATE_RPS", 1.0),
+		MetricsRateBurst:    int(getEnvInt64("FIREFIK_METRICS_RATE_BURST", 5)),
+		MetricsListenAddr:   getEnv("FIREFIK_METRICS_LISTEN", ""),
+		MetricsTLSCert:      SafePath(getEnv("FIREFIK_METRICS_TLS_CERT", "")),
+		MetricsTLSKey:       SafePath(getEnv("FIREFIK_METRICS_TLS_KEY", "")),
+		MetricsAllowPrivate: getEnvBool("FIREFIK_METRICS_ALLOW_PRIVATE", false),
+		TemplatesFile:       SafePath(os.Getenv("FIREFIK_TEMPLATES_FILE")),
+		PoliciesDir:         SafePath(os.Getenv("FIREFIK_POLICIES_DIR")),
+		PoliciesReadOnly:    getEnvBool("FIREFIK_POLICIES_READONLY", false),
+		AutogenMode:         strings.ToLower(getEnv("FIREFIK_AUTOGEN_MODE", "off")),
+		AutogenMinSamples:   int(getEnvInt64("FIREFIK_AUTOGEN_MIN_SAMPLES", 10)),
+		AutogenDBPath:       SafePath(getEnv("FIREFIK_AUTOGEN_DB_PATH", "")),
+		ScheduleInterval:    int(getEnvInt64("FIREFIK_SCHEDULE_INTERVAL", 60)),
 
 		ControlPlaneGRPC:       getEnv("FIREFIK_CONTROL_PLANE_GRPC", ""),
 		ControlPlaneHTTP:       getEnv("FIREFIK_CONTROL_PLANE_HTTP", ""),

@@ -307,12 +307,23 @@ func (s *Server) validateMetricsListener() error {
 	if s.metricsToken.Get() == "" {
 		return fmt.Errorf("refusing to start: TCP metrics listener %q requires FIREFIK_METRICS_TOKEN (or FIREFIK_API_TOKEN fallback) to be set", addr)
 	}
-	if !isLoopbackHostPort(hostport) {
-		if s.cfg.MetricsTLSCert == "" || s.cfg.MetricsTLSKey == "" {
-			return fmt.Errorf("refusing to start: non-loopback metrics listener %q requires FIREFIK_METRICS_TLS_CERT and FIREFIK_METRICS_TLS_KEY", addr)
+	if isLoopbackHostPort(hostport) {
+		return nil
+	}
+	if s.cfg.MetricsTLSCert != "" && s.cfg.MetricsTLSKey != "" {
+		return nil
+	}
+	if s.cfg.MetricsAllowPrivate {
+		if rng, ok := matchPrivateRange(hostport); ok {
+			s.logger.Warn(
+				"metrics listener bound to private address without TLS — FIREFIK_METRICS_ALLOW_PRIVATE is set; access is gated by bearer token only",
+				"addr", addr,
+				"private_range", rng,
+			)
+			return nil
 		}
 	}
-	return nil
+	return fmt.Errorf("refusing to start: non-loopback metrics listener %q requires FIREFIK_METRICS_TLS_CERT and FIREFIK_METRICS_TLS_KEY (or FIREFIK_METRICS_ALLOW_PRIVATE=true for RFC1918/ULA addresses)", addr)
 }
 
 func isLoopbackHostPort(hostport string) bool {
@@ -331,6 +342,44 @@ func isLoopbackHostPort(hostport string) bool {
 		return false
 	}
 	return ip.IsLoopback()
+}
+
+var privateRanges = []struct {
+	name string
+	cidr *net.IPNet
+}{
+	{"10.0.0.0/8", mustParseCIDR("10.0.0.0/8")},
+	{"172.16.0.0/12", mustParseCIDR("172.16.0.0/12")},
+	{"192.168.0.0/16", mustParseCIDR("192.168.0.0/16")},
+	{"fc00::/7", mustParseCIDR("fc00::/7")},
+}
+
+func mustParseCIDR(s string) *net.IPNet {
+	_, n, err := net.ParseCIDR(s)
+	if err != nil {
+		panic(fmt.Sprintf("invalid CIDR %q: %v", s, err))
+	}
+	return n
+}
+
+func matchPrivateRange(hostport string) (string, bool) {
+	host, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		host = hostport
+	}
+	if host == "" {
+		return "", false
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return "", false
+	}
+	for _, r := range privateRanges {
+		if r.cidr.Contains(ip) {
+			return r.name, true
+		}
+	}
+	return "", false
 }
 
 func parseListenAddr(addr string) (network, hostport string, isUnix bool) {
