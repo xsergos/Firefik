@@ -38,6 +38,7 @@ The most-used variables in a Compose deployment:
 |---|---|---|
 | `FIREFIK_API_TOKEN` (or `_FILE`) | *(required for TCP)* | Bearer token for `/api`, `/ws`, `/metrics`. Refuses to start on a TCP listener without it. |
 | `FIREFIK_LISTEN_ADDR` | `unix:///run/firefik/api.sock` | TCP (`:8080`) or unix-socket listener. Unix socket is the recommended default. |
+| `FIREFIK_METRICS_LISTEN` | — | Optional dedicated listener for `/metrics` (e.g. `tcp://127.0.0.1:9180`). Keeps the API on a unix socket while letting Prometheus-style scrapers reach metrics over TCP. See [docs/operations.md](docs/operations.md#dedicated-metrics-listener). |
 | `FIREFIK_BACKEND` | `auto` | Firewall backend: `auto`, `iptables`, `nftables`. |
 | `FIREFIK_DEFAULT_POLICY` | `RETURN` | Default verdict for containers when no rule matches. |
 | `FIREFIK_AUTO_ALLOWLIST` | `true` | Auto-allowlist a container's own Docker network CIDRs. |

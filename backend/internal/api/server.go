@@ -198,14 +198,44 @@ func (s *Server) Run(ctx context.Context) error {
 		s.logger.Info("listening on tcp", "addr", addr, "auth_required", s.cfg.APIToken != "")
 	}
 
+	metricsSrv, metricsLn, metricsCleanup, err := s.startMetricsListener()
+	if err != nil {
+		if ln != nil {
+			_ = ln.Close()
+		}
+		return err
+	}
+	if metricsCleanup != nil {
+		defer metricsCleanup()
+	}
+
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+		if metricsSrv != nil {
+			if err := metricsSrv.Shutdown(shutdownCtx); err != nil {
+				s.logger.Error("graceful shutdown of metrics server failed", "error", err)
+			}
+		}
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			s.logger.Error("graceful shutdown failed", "error", err)
 		}
 	}()
+
+	if metricsSrv != nil {
+		go func() {
+			var serveErr error
+			if s.cfg.MetricsTLSCert != "" && s.cfg.MetricsTLSKey != "" {
+				serveErr = metricsSrv.ServeTLS(metricsLn, s.cfg.MetricsTLSCert, s.cfg.MetricsTLSKey)
+			} else {
+				serveErr = metricsSrv.Serve(metricsLn)
+			}
+			if serveErr != nil && serveErr != http.ErrServerClosed {
+				s.logger.Error("metrics server exited with error", "error", serveErr)
+			}
+		}()
+	}
 
 	if ln != nil {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
@@ -219,14 +249,98 @@ func (s *Server) Run(ctx context.Context) error {
 	return nil
 }
 
+func (s *Server) startMetricsListener() (*http.Server, net.Listener, func(), error) {
+	if s.cfg.MetricsListenAddr == "" {
+		return nil, nil, nil, nil
+	}
+	addr := s.cfg.MetricsListenAddr
+	network, hostport, isUnix := parseListenAddr(addr)
+	mr := s.buildMetricsRouter()
+	metricsSrv := &http.Server{
+		Handler:        mr,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20,
+	}
+	if isUnix {
+		_ = os.Remove(hostport)
+		ln, err := net.Listen(network, hostport)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("listen metrics unix %s: %w", hostport, err)
+		}
+		if err := configureSocket(hostport, s.cfg.SocketMode, s.cfg.SocketGroup); err != nil {
+			_ = ln.Close()
+			_ = os.Remove(hostport)
+			return nil, nil, nil, err
+		}
+		cleanup := func() { _ = os.Remove(hostport) }
+		s.logger.Info("metrics listening on unix socket", "path", hostport, "mode", s.cfg.SocketMode.String(), "group", s.cfg.SocketGroup)
+		return metricsSrv, ln, cleanup, nil
+	}
+	ln, err := net.Listen(network, hostport)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("listen metrics tcp %s: %w", hostport, err)
+	}
+	s.logger.Info("metrics listening on tcp", "addr", hostport, "tls", s.cfg.MetricsTLSCert != "")
+	return metricsSrv, ln, nil, nil
+}
+
 func (s *Server) validateSecurityConfig() error {
-	if strings.HasPrefix(s.cfg.ListenAddr, "unix://") {
+	if !strings.HasPrefix(s.cfg.ListenAddr, "unix://") {
+		if s.cfg.APIToken == "" {
+			return fmt.Errorf("refusing to start: TCP listener %q requires FIREFIK_API_TOKEN (or FIREFIK_API_TOKEN_FILE) to be set", s.cfg.ListenAddr)
+		}
+	}
+	if s.cfg.MetricsListenAddr == "" {
 		return nil
 	}
-	if s.cfg.APIToken == "" {
-		return fmt.Errorf("refusing to start: TCP listener %q requires FIREFIK_API_TOKEN (or FIREFIK_API_TOKEN_FILE) to be set", s.cfg.ListenAddr)
+	return s.validateMetricsListener()
+}
+
+func (s *Server) validateMetricsListener() error {
+	addr := s.cfg.MetricsListenAddr
+	if strings.HasPrefix(addr, "unix://") {
+		return nil
+	}
+	hostport := strings.TrimPrefix(addr, "tcp://")
+	if s.metricsToken.Get() == "" {
+		return fmt.Errorf("refusing to start: TCP metrics listener %q requires FIREFIK_METRICS_TOKEN (or FIREFIK_API_TOKEN fallback) to be set", addr)
+	}
+	if !isLoopbackHostPort(hostport) {
+		if s.cfg.MetricsTLSCert == "" || s.cfg.MetricsTLSKey == "" {
+			return fmt.Errorf("refusing to start: non-loopback metrics listener %q requires FIREFIK_METRICS_TLS_CERT and FIREFIK_METRICS_TLS_KEY", addr)
+		}
 	}
 	return nil
+}
+
+func isLoopbackHostPort(hostport string) bool {
+	host, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		host = hostport
+	}
+	if host == "" {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback()
+}
+
+func parseListenAddr(addr string) (network, hostport string, isUnix bool) {
+	if strings.HasPrefix(addr, "unix://") {
+		return "unix", strings.TrimPrefix(addr, "unix://"), true
+	}
+	if strings.HasPrefix(addr, "tcp://") {
+		return "tcp", strings.TrimPrefix(addr, "tcp://"), false
+	}
+	return "tcp", addr, false
 }
 
 func (s *Server) buildTLSConfig() (*tls.Config, error) {
@@ -313,14 +427,29 @@ func (s *Server) registerRoutes(r *gin.Engine) {
 	ws := r.Group("/ws", authBearerDynamic(s.apiToken))
 	ws.GET("/logs", s.handleWSLogs)
 
-	metricsHandlers := []gin.HandlerFunc{authBearerDynamic(s.metricsToken)}
+	if s.cfg.MetricsListenAddr == "" {
+		s.attachMetricsRoute(r)
+	}
+}
+
+func (s *Server) attachMetricsRoute(r gin.IRouter) {
+	handlers := []gin.HandlerFunc{authBearerDynamic(s.metricsToken)}
 	if s.cfg.MetricsRateRPS > 0 && s.cfg.MetricsRateBurst > 0 {
-		metricsHandlers = append(metricsHandlers,
+		handlers = append(handlers,
 			newRateLimiter(s.cfg.MetricsRateRPS, s.cfg.MetricsRateBurst).middlewareAllMethods(),
 		)
 	}
-	metricsHandlers = append(metricsHandlers, gin.WrapH(promhttp.Handler()))
-	r.GET("/metrics", metricsHandlers...)
+	handlers = append(handlers, gin.WrapH(promhttp.Handler()))
+	r.GET("/metrics", handlers...)
+}
+
+func (s *Server) buildMetricsRouter() *gin.Engine {
+	mr := gin.New()
+	mr.Use(s.panicRecovery())
+	mr.Use(requestID())
+	mr.Use(s.requestLogger())
+	s.attachMetricsRoute(mr)
+	return mr
 }
 
 // @Summary OpenAPI specification (JSON)

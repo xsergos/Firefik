@@ -117,7 +117,9 @@ of scope.
 
 - `GET /ws/logs` — WebSocket audit/traffic stream (`?filter=` optional).
 - `GET /metrics` — Prometheus metrics (separate token via
-  `FIREFIK_METRICS_TOKEN`).
+  `FIREFIK_METRICS_TOKEN`). Set `FIREFIK_METRICS_LISTEN` to expose
+  `/metrics` on a dedicated TCP/unix listener; the main API listener
+  then returns 404 for `/metrics`.
 
 ## Auth
 

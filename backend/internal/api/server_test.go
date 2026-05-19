@@ -430,3 +430,237 @@ func TestRegisterRoutesSmoke(t *testing.T) {
 		t.Errorf("/openapi.yaml code=%d", rec.Code)
 	}
 }
+
+func TestIsLoopbackHostPort(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"127.0.0.1:9180", true},
+		{"localhost:9180", true},
+		{"[::1]:9180", true},
+		{"127.5.6.7:9180", true},
+		{"0.0.0.0:9180", false},
+		{":9180", false},
+		{"10.0.0.1:9180", false},
+		{"example.com:9180", false},
+	}
+	for _, c := range cases {
+		if got := isLoopbackHostPort(c.in); got != c.want {
+			t.Errorf("isLoopbackHostPort(%q)=%v want %v", c.in, got, c.want)
+		}
+	}
+}
+
+func TestParseListenAddr(t *testing.T) {
+	cases := []struct {
+		in       string
+		network  string
+		hostport string
+		isUnix   bool
+	}{
+		{"unix:///run/firefik/m.sock", "unix", "/run/firefik/m.sock", true},
+		{"tcp://127.0.0.1:9180", "tcp", "127.0.0.1:9180", false},
+		{"127.0.0.1:9180", "tcp", "127.0.0.1:9180", false},
+	}
+	for _, c := range cases {
+		network, hp, isUnix := parseListenAddr(c.in)
+		if network != c.network || hp != c.hostport || isUnix != c.isUnix {
+			t.Errorf("parseListenAddr(%q)=(%q,%q,%v) want (%q,%q,%v)",
+				c.in, network, hp, isUnix, c.network, c.hostport, c.isUnix)
+		}
+	}
+}
+
+func TestValidateMetricsListenerUnixOK(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:        "unix:///tmp/api.sock",
+		MetricsListenAddr: "unix:///tmp/metrics.sock",
+	}
+	s := makeTestServer(t, cfg)
+	if err := s.validateSecurityConfig(); err != nil {
+		t.Errorf("unix metrics listener should pass: %v", err)
+	}
+}
+
+func TestValidateMetricsListenerLoopbackOK(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:        "unix:///tmp/api.sock",
+		MetricsToken:      "scrape-tok",
+		MetricsListenAddr: "tcp://127.0.0.1:9180",
+	}
+	s := makeTestServer(t, cfg)
+	if err := s.validateSecurityConfig(); err != nil {
+		t.Errorf("loopback metrics listener with token should pass: %v", err)
+	}
+}
+
+func TestValidateMetricsListenerTCPNoTokenFails(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:        "unix:///tmp/api.sock",
+		MetricsListenAddr: "tcp://127.0.0.1:9180",
+	}
+	s := makeTestServer(t, cfg)
+	if err := s.validateSecurityConfig(); err == nil {
+		t.Errorf("expected error: TCP metrics listener without token")
+	}
+}
+
+func TestValidateMetricsListenerNonLoopbackNoTLSFails(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:        "unix:///tmp/api.sock",
+		MetricsToken:      "scrape-tok",
+		MetricsListenAddr: "tcp://0.0.0.0:9180",
+	}
+	s := makeTestServer(t, cfg)
+	if err := s.validateSecurityConfig(); err == nil {
+		t.Errorf("expected error: non-loopback metrics listener without TLS")
+	}
+}
+
+func TestValidateMetricsListenerNonLoopbackWithTLSOK(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:        "unix:///tmp/api.sock",
+		MetricsToken:      "scrape-tok",
+		MetricsListenAddr: "tcp://10.0.0.1:9180",
+		MetricsTLSCert:    "/etc/firefik/m.crt",
+		MetricsTLSKey:     "/etc/firefik/m.key",
+	}
+	s := makeTestServer(t, cfg)
+	if err := s.validateSecurityConfig(); err != nil {
+		t.Errorf("non-loopback metrics listener with TLS should pass: %v", err)
+	}
+}
+
+func TestValidateMetricsListenerFallbackAPIToken(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:        "unix:///tmp/api.sock",
+		APIToken:          "api-tok",
+		MetricsListenAddr: "tcp://127.0.0.1:9180",
+	}
+	s := makeTestServer(t, cfg)
+	if err := s.validateSecurityConfig(); err != nil {
+		t.Errorf("metrics listener should accept APIToken fallback: %v", err)
+	}
+}
+
+func TestRegisterRoutesNoMetricsOnMainWhenSeparate(t *testing.T) {
+	cfg := &config.Config{
+		MetricsListenAddr: "tcp://127.0.0.1:9180",
+		MetricsToken:      "scrape-tok",
+	}
+	s := makeTestServer(t, cfg)
+	r := gin.New()
+	s.registerRoutes(r)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/metrics", nil)
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("/metrics on main listener: code=%d want 404", rec.Code)
+	}
+}
+
+func TestMetricsRouterServesMetricsOnly(t *testing.T) {
+	cfg := &config.Config{
+		MetricsListenAddr: "tcp://127.0.0.1:9180",
+		MetricsToken:      "scrape-tok",
+	}
+	s := makeTestServer(t, cfg)
+	mr := s.buildMetricsRouter()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/rules", nil)
+	mr.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("non-metrics path on metrics router: code=%d want 404", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/metrics", nil)
+	mr.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("/metrics without bearer: code=%d want 401", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer scrape-tok")
+	mr.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("/metrics with bearer: code=%d want 200", rec.Code)
+	}
+}
+
+func TestMetricsRouterRateLimit(t *testing.T) {
+	cfg := &config.Config{
+		MetricsListenAddr: "tcp://127.0.0.1:9180",
+		MetricsToken:      "scrape-tok",
+		MetricsRateRPS:    0.0001,
+		MetricsRateBurst:  1,
+	}
+	s := makeTestServer(t, cfg)
+	mr := s.buildMetricsRouter()
+
+	exhaust := func() int {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/metrics", nil)
+		req.Header.Set("Authorization", "Bearer scrape-tok")
+		mr.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if code := exhaust(); code != http.StatusOK {
+		t.Fatalf("first request code=%d want 200", code)
+	}
+	if code := exhaust(); code != http.StatusTooManyRequests {
+		t.Errorf("second request code=%d want 429", code)
+	}
+}
+
+func TestRunDualListenerGracefulShutdown(t *testing.T) {
+	dir := t.TempDir()
+	apiSock := filepath.Join(dir, "api.sock")
+	cfg := &config.Config{
+		ListenAddr:        "unix://" + apiSock,
+		MetricsListenAddr: "tcp://127.0.0.1:0",
+		MetricsToken:      "scrape-tok",
+		SocketMode:        0o660,
+	}
+	s := makeTestServer(t, cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- s.Run(ctx) }()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(apiSock); err == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Run returned error: %v", err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatalf("Run did not shut down within timeout")
+	}
+}
+
+func TestRunMetricsListenError(t *testing.T) {
+	cfg := &config.Config{
+		ListenAddr:        "unix:///tmp/firefik-api-bad-metrics.sock",
+		MetricsListenAddr: "tcp://127.0.0.1:-1",
+		MetricsToken:      "scrape-tok",
+		SocketMode:        0o660,
+	}
+	s := makeTestServer(t, cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := s.Run(ctx); err == nil {
+		t.Errorf("expected metrics listen error")
+	}
+	_ = os.Remove("/tmp/firefik-api-bad-metrics.sock")
+}

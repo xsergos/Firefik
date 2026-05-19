@@ -77,6 +77,26 @@ to "good to have".
   API token — should 401.
 - **Remediate.** Provision dedicated token for Prometheus.
 
+### 2.2.1 Dedicated metrics listener
+
+- **Why.** Default API listener is a unix socket; Prometheus scrapers
+  (vector, vmagent) speak HTTP over TCP. Switching the whole API to
+  TCP exposes mutating endpoints. `FIREFIK_METRICS_LISTEN` keeps the
+  API on the unix socket while serving `/metrics` on a separate TCP
+  (or unix) listener — read-only, scoped to one endpoint.
+- **Verify.**
+  ```bash
+  curl --unix-socket /run/firefik/api.sock http://localhost/rules   # OK
+  curl -H "Authorization: Bearer $TOK" http://127.0.0.1:9180/metrics # OK
+  curl http://127.0.0.1:9180/rules                                   # 404
+  curl http://127.0.0.1:9180/metrics                                 # 401 (no bearer)
+  ```
+- **Remediate.** Bind metrics listener to loopback only; for
+  non-loopback TCP, set `FIREFIK_METRICS_TLS_CERT` and
+  `FIREFIK_METRICS_TLS_KEY` (the backend refuses to start otherwise).
+  TCP metrics listener also requires `FIREFIK_METRICS_TOKEN` (or
+  API-token fallback).
+
 ### 2.3 Control-plane bootstrap token
 
 - **Why.** `/v1/enroll` is the only public-internet-friendly surface;

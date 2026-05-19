@@ -69,6 +69,9 @@ type Config struct {
 	WSMaxSubscribers   int
 	MetricsRateRPS     float64
 	MetricsRateBurst   int
+	MetricsListenAddr  string
+	MetricsTLSCert     string
+	MetricsTLSKey      string
 	TemplatesFile      string
 	PoliciesDir        string
 	PoliciesReadOnly   bool
@@ -153,6 +156,9 @@ func Load() *Config {
 		WSMaxSubscribers:   int(getEnvInt64("FIREFIK_WS_MAX_SUBSCRIBERS", 20)),
 		MetricsRateRPS:     getEnvFloat("FIREFIK_METRICS_RATE_RPS", 1.0),
 		MetricsRateBurst:   int(getEnvInt64("FIREFIK_METRICS_RATE_BURST", 5)),
+		MetricsListenAddr:  getEnv("FIREFIK_METRICS_LISTEN", ""),
+		MetricsTLSCert:     SafePath(getEnv("FIREFIK_METRICS_TLS_CERT", "")),
+		MetricsTLSKey:      SafePath(getEnv("FIREFIK_METRICS_TLS_KEY", "")),
 		TemplatesFile:      SafePath(os.Getenv("FIREFIK_TEMPLATES_FILE")),
 		PoliciesDir:        SafePath(os.Getenv("FIREFIK_POLICIES_DIR")),
 		PoliciesReadOnly:   getEnvBool("FIREFIK_POLICIES_READONLY", false),

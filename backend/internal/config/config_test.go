@@ -173,6 +173,15 @@ func TestLoad_Defaults(t *testing.T) {
 	if c.MetricsRateRPS != 1.0 {
 		t.Errorf("MetricsRateRPS default = %v", c.MetricsRateRPS)
 	}
+	if c.MetricsListenAddr != "" {
+		t.Errorf("MetricsListenAddr default should be empty, got %q", c.MetricsListenAddr)
+	}
+	if c.MetricsTLSCert != "" {
+		t.Errorf("MetricsTLSCert default should be empty, got %q", c.MetricsTLSCert)
+	}
+	if c.MetricsTLSKey != "" {
+		t.Errorf("MetricsTLSKey default should be empty, got %q", c.MetricsTLSKey)
+	}
 	if c.AutogenMode != "off" {
 		t.Errorf("AutogenMode default = %q", c.AutogenMode)
 	}

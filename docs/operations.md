@@ -51,6 +51,30 @@ Prometheus endpoint is `/metrics`. All labels are low-cardinality
 authentication via `Authorization: Bearer $FIREFIK_METRICS_TOKEN`
 (or API token if the metrics token is unset).
 
+### Dedicated metrics listener
+
+When the API listens on a unix socket (default), Prometheus-style
+scrapers cannot reach `/metrics` over HTTP. Expose a separate listener
+with `FIREFIK_METRICS_LISTEN`:
+
+```
+FIREFIK_LISTEN_ADDR=unix:///run/firefik/api.sock
+FIREFIK_METRICS_LISTEN=tcp://127.0.0.1:9180
+FIREFIK_METRICS_TOKEN_FILE=/run/secrets/firefik-metrics-token
+```
+
+The dedicated listener serves only `GET /metrics`; every other path
+returns 404. The same `MetricsToken` (or `APIToken` fallback) and
+`FIREFIK_METRICS_RATE_*` limits apply. When `FIREFIK_METRICS_LISTEN`
+is set, `/metrics` is removed from the main API listener (no
+dual-exposure).
+
+For non-loopback TCP, configure `FIREFIK_METRICS_TLS_CERT` and
+`FIREFIK_METRICS_TLS_KEY` — the backend refuses to start otherwise.
+TCP listeners also require a metrics token (either dedicated or
+API-token fallback). Unix-socket metrics listeners inherit
+`FIREFIK_SOCKET_MODE` / `FIREFIK_SOCKET_GROUP` from the API socket.
+
 Key metrics:
 
 - `firefik_engine_reconcile_total`
