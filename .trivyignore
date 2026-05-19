@@ -4,7 +4,7 @@
 
 # === caddy gobinary, frontend image ===========================================
 #
-# Caddy v2.11.2 binary embeds these third-party libs at the versions caddy's
+# Caddy v2.11.3 binary embeds these third-party libs at the versions caddy's
 # go.mod pinned. The vulnerable code paths are NOT reachable in our
 # `frontend/Caddyfile.panel`:
 #
